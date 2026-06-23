@@ -4,29 +4,45 @@ const DEVELOPMENT_FALLBACK_SLUG = "brad-hughes-bourbon-reviews";
 
 export async function getSiteContext(slug: string) {
   const { data, error } = await supabase
-    .schema("barrel_ledger")
-    .from("site_settings")
+    .schema("barrel_ledger_public")
+    .from("v_site_context")
     .select(`
       site_title,
       site_subtitle,
       logo_url,
       banner_url,
       primary_color,
-      organization!inner (
-        organization_name,
-        organization_slug,
-        primary_domain,
-        subscription_tier
-      )
+      organization_id,
+      organization_name,
+      organization_slug,
+      primary_domain,
+      subscription_tier
     `)
-    .eq("organization.organization_slug", slug)
+    .eq("organization_slug", slug)
     .maybeSingle();
 
   if (error) {
     throw new Error(error.message);
   }
 
-  return data;
+  if (!data) {
+    return null;
+  }
+
+  return {
+    site_title: data.site_title,
+    site_subtitle: data.site_subtitle,
+    logo_url: data.logo_url,
+    banner_url: data.banner_url,
+    primary_color: data.primary_color,
+    organization: {
+      organization_id: data.organization_id,
+      organization_name: data.organization_name,
+      organization_slug: data.organization_slug,
+      primary_domain: data.primary_domain,
+      subscription_tier: data.subscription_tier,
+    },
+  };
 }
 
 export async function getSiteContextByHost(host: string) {
@@ -37,22 +53,21 @@ export async function getSiteContextByHost(host: string) {
     .toLowerCase();
 
   const { data, error } = await supabase
-    .schema("barrel_ledger")
-    .from("site_settings")
+    .schema("barrel_ledger_public")
+    .from("v_site_context")
     .select(`
       site_title,
       site_subtitle,
       logo_url,
       banner_url,
       primary_color,
-      organization!inner (
-        organization_name,
-        organization_slug,
-        primary_domain,
-        subscription_tier
-      )
+      organization_id,
+      organization_name,
+      organization_slug,
+      primary_domain,
+      subscription_tier
     `)
-    .eq("organization.primary_domain", cleanHost)
+    .or(`primary_domain.eq.${cleanHost},primary_domain.eq.www.${cleanHost}`)
     .maybeSingle();
 
   if (error) {
@@ -60,7 +75,20 @@ export async function getSiteContextByHost(host: string) {
   }
 
   if (data) {
-    return data;
+    return {
+      site_title: data.site_title,
+      site_subtitle: data.site_subtitle,
+      logo_url: data.logo_url,
+      banner_url: data.banner_url,
+      primary_color: data.primary_color,
+      organization: {
+        organization_id: data.organization_id,
+        organization_name: data.organization_name,
+        organization_slug: data.organization_slug,
+        primary_domain: data.primary_domain,
+        subscription_tier: data.subscription_tier,
+      },
+    };
   }
 
   return getSiteContext(DEVELOPMENT_FALLBACK_SLUG);
