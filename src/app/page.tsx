@@ -1,12 +1,16 @@
 import CustomerHeader from "@/components/CustomerHeader";
 import Navigation from "@/components/Navigation";
-import { getSiteContext } from "@/lib/getSiteContext";
+import { getSiteContextByHost } from "@/lib/getSiteContext";
+import { headers } from "next/headers";
 
 export default async function Home() {
-  const site = await getSiteContext("brad-hughes-bourbon-reviews");
+  const headersList = await headers();
+  const host = headersList.get("host") ?? "";
+
+  const site = await getSiteContextByHost(host);
 
   if (!site) {
-    return <main className="p-10">Brad site settings not found.</main>;
+    return <main className="p-10">Site settings not found.</main>;
   }
 
   return (
@@ -28,9 +32,9 @@ export default async function Home() {
           <p className="mt-4">{site.site_subtitle}</p>
 
           <p className="mt-4">
-            This homepage is now reading customer branding from Supabase
-            site_settings through getSiteContext.
+            Web site summary.
           </p>
+
         </section>
       </main>
     </>
