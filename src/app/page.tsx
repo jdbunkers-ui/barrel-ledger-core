@@ -2,6 +2,7 @@ import CustomerHeader from "@/components/CustomerHeader";
 import Navigation from "@/components/Navigation";
 import { getSiteContextByHost } from "@/lib/getSiteContext";
 import { headers } from "next/headers";
+import ReviewsClient from "./reviews/ReviewsClient";
 
 export default async function Home() {
   const headersList = await headers();
@@ -25,17 +26,8 @@ export default async function Home() {
 
       <Navigation />
 
-      <main className="min-h-screen bg-stone-100 px-6 py-12">
-        <section className="max-w-6xl mx-auto rounded-lg bg-white p-8 shadow">
-          <h1 className="text-4xl font-bold">{site.site_title}</h1>
-
-          <p className="mt-4">{site.site_subtitle}</p>
-
-          <p className="mt-4">
-            Web site summary.
-          </p>
-
-        </section>
+      <main className="min-h-screen bg-stone-100">
+        <ReviewsClient />
       </main>
     </>
   );
