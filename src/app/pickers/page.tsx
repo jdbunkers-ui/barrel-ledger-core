@@ -1,13 +1,42 @@
-export default function PickersPage() {
-  return (
-    <main className="min-h-screen bg-stone-100">
-      <section className="max-w-6xl mx-auto px-6 py-12">
-        <h1 className="text-4xl font-bold mb-4">Pickers</h1>
+import CustomerHeader from "@/components/CustomerHeader";
+import Navigation from "@/components/Navigation";
+import { getSiteContextByHost } from "@/lib/getSiteContext";
+import { headers } from "next/headers";
+import PickersClient from "./PickersClient";
 
-        <p className="text-lg text-gray-700">
-          This page will list the barrel pickers represented in this customer&apos;s tasting library.
-        </p>
-      </section>
-    </main>
+const BRAD_ORGANIZATION_ID = "58573efe-77df-4ca2-9dbb-b6fddaa8671a";
+
+export default async function PickersPage() {
+  const headersList = await headers();
+  const host = headersList.get("host") ?? "";
+
+  const site = await getSiteContextByHost(host);
+
+  if (!site) {
+    return <main className="p-10">Site settings not found.</main>;
+  }
+
+  const siteWithOrg = site as typeof site & {
+    organization_id?: string | null;
+  };
+
+  const organizationId = siteWithOrg.organization_id ?? BRAD_ORGANIZATION_ID;
+
+  return (
+    <>
+      <CustomerHeader
+        siteTitle={site.site_title}
+        siteSubtitle={site.site_subtitle}
+        logoUrl={site.logo_url}
+        bannerUrl={site.banner_url}
+        primaryColor={site.primary_color}
+      />
+
+      <Navigation />
+
+      <main className="min-h-screen bg-stone-100">
+        <PickersClient organizationId={organizationId} />
+      </main>
+    </>
   );
 }
