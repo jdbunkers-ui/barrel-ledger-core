@@ -153,8 +153,16 @@ export default function ReviewsClient() {
     return date.toISOString().slice(0, 10);
   }
 
+  function formatProof(value: number | null) {
+    return value?.toFixed(1) ?? "—";
+  }
+
+  function formatScore(value: number | null) {
+    return value?.toFixed(1) ?? "—";
+  }
+
   return (
-    <section className="mx-auto max-w-6xl px-6 py-12">
+    <section className="mx-auto max-w-6xl px-4 py-6 md:px-6 md:py-12">
       <div className="mb-6 rounded-xl border border-stone-300 bg-white p-4 shadow-sm">
         <div className="grid gap-4 md:grid-cols-3">
           <div className="md:col-span-2">
@@ -206,109 +214,176 @@ export default function ReviewsClient() {
       )}
 
       {!loading && !errorMessage && (
-        <div className="overflow-x-auto rounded-xl border border-stone-300 bg-white shadow-sm">
-          <table className="w-full min-w-[850px] border-collapse text-left">
-            <thead className="bg-stone-200 text-sm uppercase tracking-wide text-stone-700">
-              <tr>
-                <th className="w-12 px-4 py-3"></th>
-
-                <th className="px-4 py-3 text-left">
-                  <button
-                    type="button"
-                    onClick={() => handleSort("bottle_display_name")}
-                    className="font-bold hover:underline"
-                  >
-                    Bottle{sortIndicator("bottle_display_name")}
-                  </button>
-                </th>
-
-                <th className="px-4 py-3 text-center">
-                  <button
-                    type="button"
-                    onClick={() => handleSort("proof")}
-                    className="font-bold hover:underline"
-                  >
-                    Proof{sortIndicator("proof")}
-                  </button>
-                </th>
-
-                <th className="px-4 py-3 text-center whitespace-nowrap">
-                  <button
-                    type="button"
-                    onClick={() => handleSort("most_recent_created_at")}
-                    className="font-bold hover:underline"
-                  >
-                    Date{sortIndicator("most_recent_created_at")}
-                  </button>
-                </th>
-
-                <th className="px-4 py-3 text-center">
-                  <button
-                    type="button"
-                    onClick={() => handleSort("tasting_count")}
-                    className="font-bold hover:underline"
-                  >
-                    Tastings{sortIndicator("tasting_count")}
-                  </button>
-                </th>
-
-                <th className="px-4 py-3 text-center">
-                  <button
-                    type="button"
-                    onClick={() => handleSort("avg_composite_score")}
-                    className="font-bold hover:underline"
-                  >
-                    Score{sortIndicator("avg_composite_score")}
-                  </button>
-                </th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {filteredAndSortedReviews.map((review) => (
-                <tr
-                  key={review.single_barrel_id}
-                  className="border-t border-stone-200 hover:bg-stone-50"
-                >
-                  <td className="px-4 py-3 text-center">
+        <>
+          {/* Mobile card layout */}
+          <div className="space-y-3 md:hidden">
+            {filteredAndSortedReviews.map((review) => (
+              <article
+                key={review.single_barrel_id}
+                className="rounded-xl border border-stone-300 bg-white p-4 shadow-sm"
+              >
+                <div className="mb-3 flex items-start gap-2">
+                  <div className="mt-1 w-5 shrink-0">
                     <NewUpdateStar show={Boolean(review.new_update)} />
-                  </td>
+                  </div>
 
-                  <td className="px-4 py-3 text-left font-semibold text-stone-900">
+                  <h2 className="text-base font-bold leading-snug text-stone-950">
                     {review.bottle_display_name ?? "Unnamed Bottle"}
-                  </td>
+                  </h2>
+                </div>
 
-                  <td className="px-4 py-3 text-center text-stone-800">
-                    {review.proof?.toFixed(1) ?? "—"}
-                  </td>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div className="rounded-lg bg-stone-100 p-3 text-center">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-stone-600">
+                      Proof
+                    </div>
+                    <div className="mt-1 text-lg font-bold text-stone-900">
+                      {formatProof(review.proof)}
+                    </div>
+                  </div>
 
-                  <td className="px-4 py-3 text-center text-stone-800 whitespace-nowrap">
-                    {formatDate(review.most_recent_created_at)}
-                  </td>
+                  <div className="rounded-lg bg-stone-100 p-3 text-center">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-stone-600">
+                      Date
+                    </div>
+                    <div className="mt-1 text-lg font-bold text-stone-900">
+                      {formatDate(review.most_recent_created_at)}
+                    </div>
+                  </div>
 
-                  <td className="px-4 py-3 text-center text-stone-800">
-                    {review.tasting_count ?? 0}
-                  </td>
+                  <div className="rounded-lg bg-stone-100 p-3 text-center">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-stone-600">
+                      Tastings
+                    </div>
+                    <div className="mt-1 text-lg font-bold text-stone-900">
+                      {review.tasting_count ?? 0}
+                    </div>
+                  </div>
 
-                  <td className="px-4 py-3 text-center text-stone-800">
-                    {review.avg_composite_score?.toFixed(1) ?? "—"}
-                  </td>
-                </tr>
-              ))}
+                  <div className="rounded-lg bg-stone-100 p-3 text-center">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-stone-600">
+                      Score
+                    </div>
+                    <div className="mt-1 text-lg font-bold text-stone-900">
+                      {formatScore(review.avg_composite_score)}
+                    </div>
+                  </div>
+                </div>
+              </article>
+            ))}
 
-              {filteredAndSortedReviews.length === 0 && (
+            {filteredAndSortedReviews.length === 0 && (
+              <div className="rounded-xl border border-stone-300 bg-white p-6 text-center text-stone-600">
+                No reviews match the current filters.
+              </div>
+            )}
+          </div>
+
+          {/* Desktop table layout */}
+          <div className="hidden overflow-hidden rounded-xl border border-stone-300 bg-white shadow-sm md:block">
+            <table className="w-full border-collapse text-left">
+              <thead className="bg-stone-200 text-sm uppercase tracking-wide text-stone-700">
                 <tr>
-                  <td
-                    colSpan={6}
-                    className="px-4 py-8 text-center text-stone-600"
-                  >
-                    No reviews match the current filters.
-                  </td>
+                  <th className="w-12 px-4 py-3"></th>
+
+                  <th className="px-4 py-3 text-left">
+                    <button
+                      type="button"
+                      onClick={() => handleSort("bottle_display_name")}
+                      className="font-bold hover:underline"
+                    >
+                      Bottle{sortIndicator("bottle_display_name")}
+                    </button>
+                  </th>
+
+                  <th className="px-4 py-3 text-center">
+                    <button
+                      type="button"
+                      onClick={() => handleSort("proof")}
+                      className="font-bold hover:underline"
+                    >
+                      Proof{sortIndicator("proof")}
+                    </button>
+                  </th>
+
+                  <th className="px-4 py-3 text-center whitespace-nowrap">
+                    <button
+                      type="button"
+                      onClick={() => handleSort("most_recent_created_at")}
+                      className="font-bold hover:underline"
+                    >
+                      Date{sortIndicator("most_recent_created_at")}
+                    </button>
+                  </th>
+
+                  <th className="px-4 py-3 text-center">
+                    <button
+                      type="button"
+                      onClick={() => handleSort("tasting_count")}
+                      className="font-bold hover:underline"
+                    >
+                      Tastings{sortIndicator("tasting_count")}
+                    </button>
+                  </th>
+
+                  <th className="px-4 py-3 text-center">
+                    <button
+                      type="button"
+                      onClick={() => handleSort("avg_composite_score")}
+                      className="font-bold hover:underline"
+                    >
+                      Score{sortIndicator("avg_composite_score")}
+                    </button>
+                  </th>
                 </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+
+              <tbody>
+                {filteredAndSortedReviews.map((review) => (
+                  <tr
+                    key={review.single_barrel_id}
+                    className="border-t border-stone-200 hover:bg-stone-50"
+                  >
+                    <td className="px-4 py-3 text-center">
+                      <NewUpdateStar show={Boolean(review.new_update)} />
+                    </td>
+
+                    <td className="px-4 py-3 text-left font-semibold text-stone-900">
+                      {review.bottle_display_name ?? "Unnamed Bottle"}
+                    </td>
+
+                    <td className="px-4 py-3 text-center text-stone-800">
+                      {formatProof(review.proof)}
+                    </td>
+
+                    <td className="px-4 py-3 text-center text-stone-800 whitespace-nowrap">
+                      {formatDate(review.most_recent_created_at)}
+                    </td>
+
+                    <td className="px-4 py-3 text-center text-stone-800">
+                      {review.tasting_count ?? 0}
+                    </td>
+
+                    <td className="px-4 py-3 text-center text-stone-800">
+                      {formatScore(review.avg_composite_score)}
+                    </td>
+                  </tr>
+                ))}
+
+                {filteredAndSortedReviews.length === 0 && (
+                  <tr>
+                    <td
+                      colSpan={6}
+                      className="px-4 py-8 text-center text-stone-600"
+                    >
+                      No reviews match the current filters.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
     </section>
   );
