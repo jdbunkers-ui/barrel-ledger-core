@@ -18,7 +18,7 @@ export default function Navigation() {
           About
         </a>
 
-        <a href="/login" className="hover:underline">
+        <a href="/admin/login" className="hover:underline">
           Login
         </a>
       </div>
