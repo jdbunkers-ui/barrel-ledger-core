@@ -2,9 +2,19 @@ import { getSiteContextByHost } from "@/lib/getSiteContext";
 import { headers } from "next/headers";
 import CustomerHeader from "@/components/CustomerHeader";
 import Navigation from "@/components/Navigation";
-import ProducersClient from "./ProducersClient";
+import ProducerDetailClient from "./ProducerDetailClient";
 
-export default async function ProducersPage() {
+type ProducerDetailPageProps = {
+  params: Promise<{
+    producerSlug: string;
+  }>;
+};
+
+export default async function ProducerDetailPage({
+  params,
+}: ProducerDetailPageProps) {
+  const { producerSlug } = await params;
+
   const headersList = await headers();
   const host = headersList.get("host") ?? "";
 
@@ -27,7 +37,10 @@ export default async function ProducersPage() {
       <Navigation />
 
       <main className="min-h-screen bg-stone-100">
-        <ProducersClient organizationSlug={site.organization_slug} />
+        <ProducerDetailClient
+          organizationSlug={site.organization_slug}
+          producerSlug={producerSlug}
+        />
       </main>
     </>
   );
