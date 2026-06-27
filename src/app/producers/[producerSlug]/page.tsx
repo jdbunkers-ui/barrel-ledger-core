@@ -38,7 +38,7 @@ export default async function ProducerDetailPage({
 
       <main className="min-h-screen bg-stone-100">
         <ProducerDetailClient
-          organizationSlug={site.organization_slug}
+          organizationSlug="brad-hughes-bourbon-reviews"
           producerSlug={producerSlug}
         />
       </main>

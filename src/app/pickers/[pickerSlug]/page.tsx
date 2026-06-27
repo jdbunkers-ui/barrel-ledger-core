@@ -2,9 +2,19 @@ import { getSiteContextByHost } from "@/lib/getSiteContext";
 import { headers } from "next/headers";
 import CustomerHeader from "@/components/CustomerHeader";
 import Navigation from "@/components/Navigation";
-import PickersClient from "./PickersClient";
+import PickerDetailClient from "./PickerDetailClient";
 
-export default async function PickersPage() {
+type PickerDetailPageProps = {
+  params: Promise<{
+    pickerSlug: string;
+  }>;
+};
+
+export default async function PickerDetailPage({
+  params,
+}: PickerDetailPageProps) {
+  const { pickerSlug } = await params;
+
   const headersList = await headers();
   const host = headersList.get("host") ?? "";
 
@@ -27,7 +37,10 @@ export default async function PickersPage() {
       <Navigation />
 
       <main className="min-h-screen bg-stone-100">
-        <PickersClient organizationSlug="brad-hughes-bourbon-reviews" />
+        <PickerDetailClient
+          organizationSlug="brad-hughes-bourbon-reviews"
+          pickerSlug={pickerSlug}
+        />
       </main>
     </>
   );

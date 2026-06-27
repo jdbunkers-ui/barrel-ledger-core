@@ -7,15 +7,23 @@ import { supabase } from "@/lib/supabaseClient";
 
 type PickerSummary = {
   organization_id: string;
+  organization_slug: string;
+  organization_name: string | null;
+
   picker_id: string;
+  picker_slug: string | null;
   picker_name: string | null;
   picker_type: string | null;
-  state: string | null;
+
   city: string | null;
+  state: string | null;
+  country: string | null;
+
   single_barrel_count: number | null;
   tasting_count: number | null;
   avg_composite_score: number | null;
   most_recent_tasting_date: string | null;
+
   new_update: boolean | null;
   search_text: string | null;
 };
@@ -23,8 +31,7 @@ type PickerSummary = {
 type SortKey =
   | "picker_name"
   | "picker_type"
-  | "state"
-  | "city"
+  | "location"
   | "single_barrel_count"
   | "tasting_count"
   | "avg_composite_score"
@@ -33,18 +40,16 @@ type SortKey =
 type SortDirection = "asc" | "desc";
 
 type PickersClientProps = {
-  organizationId: string;
+  organizationSlug: string;
 };
 
-export default function PickersClient({ organizationId }: PickersClientProps) {
+export default function PickersClient({ organizationSlug }: PickersClientProps) {
   const [pickers, setPickers] = useState<PickerSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const [searchText, setSearchText] = useState("");
-
-  const [sortKey, setSortKey] =
-    useState<SortKey>("most_recent_tasting_date");
+  const [sortKey, setSortKey] = useState<SortKey>("most_recent_tasting_date");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
   useEffect(() => {
@@ -58,11 +63,15 @@ export default function PickersClient({ organizationId }: PickersClientProps) {
         .select(
           `
           organization_id,
+          organization_slug,
+          organization_name,
           picker_id,
+          picker_slug,
           picker_name,
           picker_type,
-          state,
           city,
+          state,
+          country,
           single_barrel_count,
           tasting_count,
           avg_composite_score,
@@ -71,9 +80,9 @@ export default function PickersClient({ organizationId }: PickersClientProps) {
           search_text
         `
         )
-        .eq("organization_id", organizationId)
+        .eq("organization_slug", organizationSlug)
         .order("most_recent_tasting_date", { ascending: false })
-        .limit(100);
+        .limit(500);
 
       if (error) {
         setErrorMessage(error.message);
@@ -86,39 +95,38 @@ export default function PickersClient({ organizationId }: PickersClientProps) {
     }
 
     loadPickers();
-  }, [organizationId]);
+  }, [organizationSlug]);
 
   const filteredAndSortedPickers = useMemo(() => {
     const normalizedSearch = searchText.trim().toLowerCase();
 
     const filtered = pickers.filter((picker) => {
-      if (
-        normalizedSearch &&
-        !`${picker.search_text ?? ""} ${picker.picker_name ?? ""} ${
-          picker.picker_type ?? ""
-        } ${picker.state ?? ""} ${picker.city ?? ""}`
-          .toLowerCase()
-          .includes(normalizedSearch)
-      ) {
-        return false;
-      }
+      if (!normalizedSearch) return true;
 
-      return true;
+      return `${picker.search_text ?? ""} ${picker.picker_name ?? ""} ${
+        picker.picker_type ?? ""
+      } ${picker.city ?? ""} ${picker.state ?? ""} ${picker.country ?? ""}`
+        .toLowerCase()
+        .includes(normalizedSearch);
     });
 
     filtered.sort((a, b) => {
+      if (sortKey === "location") {
+        const aLocation = formatLocation(a.city, a.state, a.country);
+        const bLocation = formatLocation(b.city, b.state, b.country);
+
+        return sortDirection === "asc"
+          ? aLocation.localeCompare(bLocation)
+          : bLocation.localeCompare(aLocation);
+      }
+
       const aValue = a[sortKey];
       const bValue = b[sortKey];
 
       if (aValue === null || aValue === undefined) return 1;
       if (bValue === null || bValue === undefined) return -1;
 
-      if (
-        sortKey === "picker_name" ||
-        sortKey === "picker_type" ||
-        sortKey === "state" ||
-        sortKey === "city"
-      ) {
+      if (sortKey === "picker_name" || sortKey === "picker_type") {
         return sortDirection === "asc"
           ? String(aValue).localeCompare(String(bValue))
           : String(bValue).localeCompare(String(aValue));
@@ -147,8 +155,7 @@ export default function PickersClient({ organizationId }: PickersClientProps) {
       setSortDirection(
         nextSortKey === "picker_name" ||
           nextSortKey === "picker_type" ||
-          nextSortKey === "state" ||
-          nextSortKey === "city"
+          nextSortKey === "location"
           ? "asc"
           : "desc"
       );
@@ -160,20 +167,8 @@ export default function PickersClient({ organizationId }: PickersClientProps) {
     return sortDirection === "asc" ? " ▲" : " ▼";
   }
 
-  function formatDate(value: string | null) {
-    if (!value) return "—";
-
-    const date = new Date(value);
-
-    if (Number.isNaN(date.getTime())) {
-      return "—";
-    }
-
-    return date.toISOString().slice(0, 10);
-  }
-
-  function formatScore(value: number | null) {
-    return value?.toFixed(1) ?? "—";
+  function pickerHref(picker: PickerSummary) {
+    return picker.picker_slug ? `/pickers/${picker.picker_slug}` : null;
   }
 
   return (
@@ -211,68 +206,64 @@ export default function PickersClient({ organizationId }: PickersClientProps) {
       {!loading && !errorMessage && (
         <>
           <div className="space-y-3 md:hidden">
-            {filteredAndSortedPickers.map((picker) => (
-              <Link
-                key={picker.picker_id}
-                href={`/pickers/${picker.picker_id}`}
-                className="block rounded-xl border border-stone-300 bg-white p-4 shadow-sm"
-              >
-                <div className="mb-3 flex items-start gap-2">
-                  <div className="mt-1 w-5 shrink-0">
-                    <NewUpdateStar show={Boolean(picker.new_update)} />
-                  </div>
+            {filteredAndSortedPickers.map((picker) => {
+              const href = pickerHref(picker);
 
-                  <div>
-                    <h2 className="text-base font-bold leading-snug text-stone-950">
-                      {picker.picker_name ?? "Unnamed Picker"}
-                    </h2>
-                    <p className="mt-1 text-sm text-stone-600">
-                      {[picker.picker_type, picker.city, picker.state]
-                        .filter(Boolean)
-                        .join(" • ") || "Picker details unavailable"}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  <div className="rounded-lg bg-stone-100 p-3 text-center">
-                    <div className="text-xs font-semibold uppercase tracking-wide text-stone-600">
-                      Date
+              return (
+                <article
+                  key={picker.picker_id}
+                  className="rounded-xl border border-stone-300 bg-white p-4 shadow-sm"
+                >
+                  <div className="mb-3 flex items-start gap-2">
+                    <div className="mt-1 w-5 shrink-0">
+                      <NewUpdateStar show={Boolean(picker.new_update)} />
                     </div>
-                    <div className="mt-1 text-sm font-bold text-stone-900">
-                      {formatDate(picker.most_recent_tasting_date)}
+
+                    <div>
+                      <h2 className="text-base font-bold leading-snug text-stone-950">
+                        {href ? (
+                          <Link href={href} className="hover:underline">
+                            {picker.picker_name ?? "Unnamed Picker"}
+                          </Link>
+                        ) : (
+                          picker.picker_name ?? "Unnamed Picker"
+                        )}
+                      </h2>
+
+                      <div className="mt-1 text-sm text-stone-600">
+                        {picker.picker_type ?? "—"}
+                      </div>
                     </div>
                   </div>
 
-                  <div className="rounded-lg bg-stone-100 p-3 text-center">
-                    <div className="text-xs font-semibold uppercase tracking-wide text-stone-600">
-                      Picks
-                    </div>
-                    <div className="mt-1 text-lg font-bold text-stone-900">
-                      {picker.single_barrel_count ?? 0}
-                    </div>
+                  <div className="mb-3 text-sm text-stone-600">
+                    {formatLocation(picker.city, picker.state, picker.country)}
                   </div>
 
-                  <div className="rounded-lg bg-stone-100 p-3 text-center">
-                    <div className="text-xs font-semibold uppercase tracking-wide text-stone-600">
-                      Tastings
-                    </div>
-                    <div className="mt-1 text-lg font-bold text-stone-900">
-                      {picker.tasting_count ?? 0}
-                    </div>
-                  </div>
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <MobileStatCard
+                      label="Pick Count"
+                      value={String(picker.single_barrel_count ?? 0)}
+                    />
 
-                  <div className="rounded-lg bg-stone-100 p-3 text-center">
-                    <div className="text-xs font-semibold uppercase tracking-wide text-stone-600">
-                      Score
-                    </div>
-                    <div className="mt-1 text-lg font-bold text-stone-900">
-                      {formatScore(picker.avg_composite_score)}
-                    </div>
+                    <MobileStatCard
+                      label="Tastings"
+                      value={String(picker.tasting_count ?? 0)}
+                    />
+
+                    <MobileStatCard
+                      label="Score"
+                      value={formatScore(picker.avg_composite_score)}
+                    />
+
+                    <MobileStatCard
+                      label="Most Recent"
+                      value={formatDate(picker.most_recent_tasting_date)}
+                    />
                   </div>
-                </div>
-              </Link>
-            ))}
+                </article>
+              );
+            })}
 
             {filteredAndSortedPickers.length === 0 && (
               <div className="rounded-xl border border-stone-300 bg-white p-6 text-center text-stone-600">
@@ -297,7 +288,7 @@ export default function PickersClient({ organizationId }: PickersClientProps) {
                     </button>
                   </th>
 
-                  <th className="px-4 py-3 text-center">
+                  <th className="px-4 py-3 text-left">
                     <button
                       type="button"
                       onClick={() => handleSort("picker_type")}
@@ -307,33 +298,13 @@ export default function PickersClient({ organizationId }: PickersClientProps) {
                     </button>
                   </th>
 
-                  <th className="px-4 py-3 text-center">
+                  <th className="px-4 py-3 text-left">
                     <button
                       type="button"
-                      onClick={() => handleSort("city")}
+                      onClick={() => handleSort("location")}
                       className="font-bold hover:underline"
                     >
-                      City{sortIndicator("city")}
-                    </button>
-                  </th>
-
-                  <th className="px-4 py-3 text-center">
-                    <button
-                      type="button"
-                      onClick={() => handleSort("state")}
-                      className="font-bold hover:underline"
-                    >
-                      State{sortIndicator("state")}
-                    </button>
-                  </th>
-
-                  <th className="px-4 py-3 text-center whitespace-nowrap">
-                    <button
-                      type="button"
-                      onClick={() => handleSort("most_recent_tasting_date")}
-                      className="font-bold hover:underline"
-                    >
-                      Date{sortIndicator("most_recent_tasting_date")}
+                      Location{sortIndicator("location")}
                     </button>
                   </th>
 
@@ -343,7 +314,7 @@ export default function PickersClient({ organizationId }: PickersClientProps) {
                       onClick={() => handleSort("single_barrel_count")}
                       className="font-bold hover:underline"
                     >
-                      Picks{sortIndicator("single_barrel_count")}
+                      Pick Count{sortIndicator("single_barrel_count")}
                     </button>
                   </th>
 
@@ -366,62 +337,77 @@ export default function PickersClient({ organizationId }: PickersClientProps) {
                       Score{sortIndicator("avg_composite_score")}
                     </button>
                   </th>
+
+                  <th className="px-4 py-3 text-center whitespace-nowrap">
+                    <button
+                      type="button"
+                      onClick={() => handleSort("most_recent_tasting_date")}
+                      className="font-bold hover:underline"
+                    >
+                      Most Recent{sortIndicator("most_recent_tasting_date")}
+                    </button>
+                  </th>
                 </tr>
               </thead>
 
               <tbody>
-                {filteredAndSortedPickers.map((picker) => (
-                  <tr
-                    key={picker.picker_id}
-                    className="border-t border-stone-200 hover:bg-stone-50"
-                  >
-                    <td className="px-4 py-3 text-center">
-                      <NewUpdateStar show={Boolean(picker.new_update)} />
-                    </td>
+                {filteredAndSortedPickers.map((picker) => {
+                  const href = pickerHref(picker);
 
-                    <td className="px-4 py-3 text-left font-semibold text-stone-900">
-                      <Link
-                        href={`/pickers/${picker.picker_id}`}
-                        className="hover:underline"
-                      >
-                        {picker.picker_name ?? "Unnamed Picker"}
-                      </Link>
-                    </td>
+                  return (
+                    <tr
+                      key={picker.picker_id}
+                      className="border-t border-stone-200 hover:bg-stone-50"
+                    >
+                      <td className="px-4 py-3 text-center">
+                        <NewUpdateStar show={Boolean(picker.new_update)} />
+                      </td>
 
-                    <td className="px-4 py-3 text-center text-stone-800">
-                      {picker.picker_type ?? "—"}
-                    </td>
+                      <td className="px-4 py-3 text-left font-semibold text-stone-900">
+                        {href ? (
+                          <Link href={href} className="hover:underline">
+                            {picker.picker_name ?? "Unnamed Picker"}
+                          </Link>
+                        ) : (
+                          picker.picker_name ?? "Unnamed Picker"
+                        )}
+                      </td>
 
-                    <td className="px-4 py-3 text-center text-stone-800">
-                      {picker.city ?? "—"}
-                    </td>
+                      <td className="px-4 py-3 text-left text-stone-800">
+                        {picker.picker_type ?? "—"}
+                      </td>
 
-                    <td className="px-4 py-3 text-center text-stone-800">
-                      {picker.state ?? "—"}
-                    </td>
+                      <td className="px-4 py-3 text-left text-stone-800">
+                        {formatLocation(
+                          picker.city,
+                          picker.state,
+                          picker.country
+                        )}
+                      </td>
 
-                    <td className="px-4 py-3 text-center text-stone-800 whitespace-nowrap">
-                      {formatDate(picker.most_recent_tasting_date)}
-                    </td>
+                      <td className="px-4 py-3 text-center text-stone-800">
+                        {picker.single_barrel_count ?? 0}
+                      </td>
 
-                    <td className="px-4 py-3 text-center text-stone-800">
-                      {picker.single_barrel_count ?? 0}
-                    </td>
+                      <td className="px-4 py-3 text-center text-stone-800">
+                        {picker.tasting_count ?? 0}
+                      </td>
 
-                    <td className="px-4 py-3 text-center text-stone-800">
-                      {picker.tasting_count ?? 0}
-                    </td>
+                      <td className="px-4 py-3 text-center text-stone-800">
+                        {formatScore(picker.avg_composite_score)}
+                      </td>
 
-                    <td className="px-4 py-3 text-center text-stone-800">
-                      {formatScore(picker.avg_composite_score)}
-                    </td>
-                  </tr>
-                ))}
+                      <td className="px-4 py-3 text-center text-stone-800 whitespace-nowrap">
+                        {formatDate(picker.most_recent_tasting_date)}
+                      </td>
+                    </tr>
+                  );
+                })}
 
                 {filteredAndSortedPickers.length === 0 && (
                   <tr>
                     <td
-                      colSpan={9}
+                      colSpan={8}
                       className="px-4 py-8 text-center text-stone-600"
                     >
                       No pickers match the current filters.
@@ -435,4 +421,43 @@ export default function PickersClient({ organizationId }: PickersClientProps) {
       )}
     </section>
   );
+}
+
+function MobileStatCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg bg-stone-100 p-3 text-center">
+      <div className="text-xs font-semibold uppercase tracking-wide text-stone-600">
+        {label}
+      </div>
+      <div className="mt-1 text-lg font-bold text-stone-900">{value}</div>
+    </div>
+  );
+}
+
+function formatLocation(
+  city: string | null,
+  state: string | null,
+  country: string | null
+) {
+  const parts = [city, state, country].filter(
+    (part) => part && part.trim() !== ""
+  );
+
+  return parts.length > 0 ? parts.join(", ") : "—";
+}
+
+function formatDate(value: string | null) {
+  if (!value) return "—";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "—";
+  }
+
+  return date.toISOString().slice(0, 10);
+}
+
+function formatScore(value: number | null) {
+  return value?.toFixed(1) ?? "—";
 }

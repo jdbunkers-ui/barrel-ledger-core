@@ -5,11 +5,12 @@ import { useEffect, useMemo, useState } from "react";
 import NewUpdateStar from "@/components/NewUpdateStar";
 import { supabase } from "@/lib/supabaseClient";
 
-type ProducerProfile = {
-  producer_id: string;
-  producer_slug: string | null;
-  producer_name: string | null;
-  canonical_producer_name: string | null;
+type PickerProfile = {
+  picker_id: string;
+  picker_slug: string | null;
+  picker_name: string | null;
+  canonical_picker_name: string | null;
+  picker_type: string | null;
 
   country: string | null;
   state: string | null;
@@ -17,15 +18,19 @@ type ProducerProfile = {
   postal_code: string | null;
   address_line_1: string | null;
   address_line_2: string | null;
+  full_address: string | null;
 
-  producer_description: string | null;
-  producer_photo_filename: string | null;
+  phone_number: string | null;
 
-  latitude: number | null;
-  longitude: number | null;
+  instagram_url: string | null;
+  facebook_url: string | null;
+  website_url: string | null;
+  google_maps_url: string | null;
+
+  picker_photo_filename: string | null;
+  picker_description: string | null;
 
   new_update: boolean | null;
-  search_text: string | null;
 };
 
 type ReviewSummary = {
@@ -37,7 +42,7 @@ type ReviewSummary = {
   bottle_id: string | null;
   bottle_slug: string | null;
 
-  producer_id: string;
+  producer_id: string | null;
   producer_slug: string | null;
   producer_name: string | null;
 
@@ -58,13 +63,14 @@ type ReviewSummary = {
   search_text: string | null;
 };
 
-type ProducerDetailClientProps = {
+type PickerDetailClientProps = {
   organizationSlug: string;
-  producerSlug: string;
+  pickerSlug: string;
 };
 
 type ReviewSortKey =
   | "bottle_display_name"
+  | "producer_name"
   | "proof"
   | "most_recent_tasting_date"
   | "tasting_count"
@@ -72,11 +78,11 @@ type ReviewSortKey =
 
 type SortDirection = "asc" | "desc";
 
-export default function ProducerDetailClient({
+export default function PickerDetailClient({
   organizationSlug,
-  producerSlug,
-}: ProducerDetailClientProps) {
-  const [producer, setProducer] = useState<ProducerProfile | null>(null);
+  pickerSlug,
+}: PickerDetailClientProps) {
+  const [picker, setPicker] = useState<PickerProfile | null>(null);
   const [reviews, setReviews] = useState<ReviewSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -87,55 +93,58 @@ export default function ProducerDetailClient({
     useState<SortDirection>("desc");
 
   useEffect(() => {
-    async function loadProducerDetail() {
+    async function loadPickerDetail() {
       setLoading(true);
       setErrorMessage(null);
 
-      const { data: producerRows, error: producerError } = await supabase
+      const { data: pickerRows, error: pickerError } = await supabase
         .schema("barrel_ledger_public")
-        .from("v_producers")
+        .from("v_picker_detail")
         .select(
           `
-          producer_id,
-          producer_slug,
-          producer_name,
-          canonical_producer_name,
+          picker_id,
+          picker_slug,
+          picker_name,
+          canonical_picker_name,
+          picker_type,
           country,
           state,
           city,
           postal_code,
           address_line_1,
           address_line_2,
-          producer_description,
-          producer_photo_filename,
-          latitude,
-          longitude,
-          new_update,
-          search_text
+          full_address,
+          phone_number,
+          instagram_url,
+          facebook_url,
+          website_url,
+          google_maps_url,
+          picker_photo_filename,
+          picker_description,
+          new_update
         `
         )
-        .eq("producer_slug", producerSlug)
+        .eq("picker_slug", pickerSlug)
         .limit(1);
 
-      if (producerError) {
-        setErrorMessage(producerError.message);
-        setProducer(null);
+      if (pickerError) {
+        setErrorMessage(pickerError.message);
+        setPicker(null);
         setReviews([]);
         setLoading(false);
         return;
       }
 
-      const matchedProducer =
-        ((producerRows ?? []) as ProducerProfile[])[0] ?? null;
+      const matchedPicker = ((pickerRows ?? []) as PickerProfile[])[0] ?? null;
 
-      if (!matchedProducer) {
-        setProducer(null);
+      if (!matchedPicker) {
+        setPicker(null);
         setReviews([]);
         setLoading(false);
         return;
       }
 
-      setProducer(matchedProducer);
+      setPicker(matchedPicker);
 
       const { data: reviewRows, error: reviewError } = await supabase
         .schema("barrel_ledger_public")
@@ -166,7 +175,7 @@ export default function ProducerDetailClient({
         `
         )
         .eq("organization_slug", organizationSlug)
-        .eq("producer_slug", producerSlug)
+        .eq("picker_id", matchedPicker.picker_id)
         .order("most_recent_tasting_date", { ascending: false })
         .order("bottle_display_name", { ascending: true });
 
@@ -180,8 +189,8 @@ export default function ProducerDetailClient({
       setLoading(false);
     }
 
-    loadProducerDetail();
-  }, [organizationSlug, producerSlug]);
+    loadPickerDetail();
+  }, [organizationSlug, pickerSlug]);
 
   const filteredAndSortedReviews = useMemo(() => {
     const normalizedSearch = searchText.trim().toLowerCase();
@@ -190,7 +199,7 @@ export default function ProducerDetailClient({
       if (!normalizedSearch) return true;
 
       return `${review.search_text ?? ""} ${review.bottle_display_name ?? ""} ${
-        review.picker_name ?? ""
+        review.producer_name ?? ""
       }`
         .toLowerCase()
         .includes(normalizedSearch);
@@ -203,7 +212,10 @@ export default function ProducerDetailClient({
       if (aValue === null || aValue === undefined) return 1;
       if (bValue === null || bValue === undefined) return -1;
 
-      if (reviewSortKey === "bottle_display_name") {
+      if (
+        reviewSortKey === "bottle_display_name" ||
+        reviewSortKey === "producer_name"
+      ) {
         return reviewSortDirection === "asc"
           ? String(aValue).localeCompare(String(bValue))
           : String(bValue).localeCompare(String(aValue));
@@ -259,9 +271,7 @@ export default function ProducerDetailClient({
     };
   }, [reviews]);
 
-  const producerPhotoUrl = getProducerPhotoUrl(
-    producer?.producer_photo_filename
-  );
+  const pickerPhotoUrl = getPickerPhotoUrl(picker?.picker_photo_filename);
 
   function handleReviewSort(nextSortKey: ReviewSortKey) {
     if (reviewSortKey === nextSortKey) {
@@ -269,7 +279,10 @@ export default function ProducerDetailClient({
     } else {
       setReviewSortKey(nextSortKey);
       setReviewSortDirection(
-        nextSortKey === "bottle_display_name" ? "asc" : "desc"
+        nextSortKey === "bottle_display_name" ||
+          nextSortKey === "producer_name"
+          ? "asc"
+          : "desc"
       );
     }
   }
@@ -283,7 +296,7 @@ export default function ProducerDetailClient({
     return (
       <section className="mx-auto max-w-6xl px-4 py-6 md:px-6 md:py-12">
         <div className="rounded-xl border border-stone-300 bg-white p-6 text-stone-700 shadow-sm">
-          Loading producer detail...
+          Loading picker detail...
         </div>
       </section>
     );
@@ -299,17 +312,17 @@ export default function ProducerDetailClient({
     );
   }
 
-  if (!producer) {
+  if (!picker) {
     return (
       <section className="mx-auto max-w-6xl px-4 py-6 md:px-6 md:py-12">
         <div className="rounded-xl border border-stone-300 bg-white p-8 text-center text-stone-700 shadow-sm">
-          Producer detail was not found.
+          Picker detail was not found.
           <div className="mt-4">
             <Link
-              href="/producers"
+              href="/pickers"
               className="font-semibold text-amber-800 underline"
             >
-              Back to Producers
+              Back to Pickers
             </Link>
           </div>
         </div>
@@ -321,10 +334,10 @@ export default function ProducerDetailClient({
     <section className="mx-auto max-w-6xl px-4 py-6 md:px-6 md:py-12">
       <div className="mb-4">
         <Link
-          href="/producers"
+          href="/pickers"
           className="text-sm font-semibold text-amber-900 hover:underline"
         >
-          ← Back to Producers
+          ← Back to Pickers
         </Link>
       </div>
 
@@ -333,78 +346,78 @@ export default function ProducerDetailClient({
           <div className="p-6 md:p-8">
             <div className="flex items-start gap-3">
               <div className="mt-2 w-6 shrink-0">
-                <NewUpdateStar show={Boolean(producer.new_update)} />
+                <NewUpdateStar show={Boolean(picker.new_update)} />
               </div>
 
               <div>
                 <h1 className="text-3xl font-bold text-stone-950 md:text-4xl">
-                  {producer.producer_name ?? "Unnamed Producer"}
+                  {picker.picker_name ?? "Unnamed Picker"}
                 </h1>
 
-                {producer.canonical_producer_name &&
-                  producer.canonical_producer_name !==
-                    producer.producer_name && (
+                {picker.canonical_picker_name &&
+                  picker.canonical_picker_name !== picker.picker_name && (
                     <div className="mt-2 text-sm font-semibold uppercase tracking-[0.16em] text-stone-500">
-                      {producer.canonical_producer_name}
+                      {picker.canonical_picker_name}
                     </div>
                   )}
 
-                <div className="mt-4 text-base text-stone-700">
-                  {formatLocation(
-                    producer.city,
-                    producer.state,
-                    producer.country
-                  )}
+                <div className="mt-4 text-base font-semibold text-stone-700">
+                  {picker.picker_type ?? "—"}
                 </div>
 
-                {formatAddress(producer) !== "—" && (
+                <div className="mt-2 text-sm text-stone-600">
+                  {formatLocation(picker.city, picker.state, picker.country)}
+                </div>
+
+                {formatAddress(picker) !== "—" && (
                   <div className="mt-2 text-sm leading-6 text-stone-600">
-                    {formatAddress(producer)}
+                    {formatAddress(picker)}
                   </div>
                 )}
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <ExternalLink href={picker.website_url} label="Website" />
+                  <ExternalLink href={picker.instagram_url} label="Instagram" />
+                  <ExternalLink href={picker.facebook_url} label="Facebook" />
+                  <ExternalLink href={picker.google_maps_url} label="Map" />
+                </div>
               </div>
             </div>
 
-            {producer.producer_description ? (
+            {picker.picker_description ? (
               <p className="mt-6 whitespace-pre-line text-sm leading-7 text-stone-700 md:text-base">
-                {producer.producer_description}
+                {picker.picker_description}
               </p>
             ) : (
               <p className="mt-6 text-sm leading-7 text-stone-600 md:text-base">
-                Producer description has not been added yet.
+                Picker description has not been added yet.
               </p>
             )}
           </div>
 
           <div className="border-t border-stone-300 bg-stone-50 p-6 md:border-l md:border-t-0">
-            {producerPhotoUrl ? (
+            {pickerPhotoUrl ? (
               <div className="overflow-hidden rounded-xl border border-stone-300 bg-white shadow-sm">
                 <img
-                  src={producerPhotoUrl}
-                  alt={producer.producer_name ?? "Producer"}
+                  src={pickerPhotoUrl}
+                  alt={picker.picker_name ?? "Picker"}
                   className="h-56 w-full object-cover md:h-64"
                 />
               </div>
             ) : (
               <div className="flex h-56 items-center justify-center rounded-xl border border-dashed border-stone-300 bg-white text-center text-sm font-semibold uppercase tracking-[0.18em] text-stone-400 md:h-64">
-                No Producer Image
+                No Picker Image
               </div>
             )}
 
             <div className="mt-4 grid grid-cols-2 gap-3">
-              <ProducerStatCard
-                label="Pick Count"
-                value={String(stats.pickCount)}
-              />
-              <ProducerStatCard
+              <PickerStatCard label="Pick Count" value={String(stats.pickCount)} />
+              <PickerStatCard
                 label="Tastings"
                 value={String(stats.tastingCount)}
               />
-              <ProducerStatCard
-                label="Avg Score"
-                value={formatScore(stats.avgScore)}
-              />
-              <ProducerStatCard
+              <PickerStatCard label="Avg Score" value={formatScore(stats.avgScore)} />
+              <PickerStatCard
                 label="Most Recent"
                 value={formatDate(stats.mostRecentDate)}
               />
@@ -422,7 +435,7 @@ export default function ProducerDetailClient({
             <input
               value={searchText}
               onChange={(event) => setSearchText(event.target.value)}
-              placeholder="Search bottle, picker, style..."
+              placeholder="Search bottle, producer, style..."
               className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm outline-none focus:border-stone-600"
             />
           </div>
@@ -440,13 +453,13 @@ export default function ProducerDetailClient({
           </h2>
 
           <div className="text-sm text-stone-500">
-            From {producer.producer_name ?? "this producer"}
+            From {picker.picker_name ?? "this picker"}
           </div>
         </div>
 
         {filteredAndSortedReviews.length === 0 ? (
           <div className="rounded-xl border border-stone-200 bg-stone-50 p-6 text-center text-stone-600">
-            No reviewed bottles were found for this producer.
+            No reviewed bottles were found for this picker.
           </div>
         ) : (
           <>
@@ -472,6 +485,16 @@ export default function ProducerDetailClient({
                         className="font-bold hover:underline"
                       >
                         Bottle{reviewSortIndicator("bottle_display_name")}
+                      </button>
+                    </th>
+
+                    <th className="px-4 py-3 text-left">
+                      <button
+                        type="button"
+                        onClick={() => handleReviewSort("producer_name")}
+                        className="font-bold hover:underline"
+                      >
+                        Producer{reviewSortIndicator("producer_name")}
                       </button>
                     </th>
 
@@ -553,12 +576,10 @@ function ReviewTableRow({ review }: { review: ReviewSummary }) {
         ) : (
           review.bottle_display_name ?? "Unnamed Bottle"
         )}
+      </td>
 
-        {review.picker_name && (
-          <div className="mt-1 text-xs font-normal text-stone-500">
-            Picker: {review.picker_name}
-          </div>
-        )}
+      <td className="px-4 py-3 text-left text-stone-800">
+        {review.producer_name ?? "—"}
       </td>
 
       <td className="px-4 py-3 text-center text-stone-800">
@@ -601,9 +622,9 @@ function ReviewMobileCard({ review }: { review: ReviewSummary }) {
             )}
           </h3>
 
-          {review.picker_name && (
+          {review.producer_name && (
             <div className="mt-1 text-xs text-stone-500">
-              Picker: {review.picker_name}
+              Producer: {review.producer_name}
             </div>
           )}
         </div>
@@ -628,7 +649,7 @@ function ReviewMobileCard({ review }: { review: ReviewSummary }) {
   );
 }
 
-function ProducerStatCard({ label, value }: { label: string; value: string }) {
+function PickerStatCard({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-lg border border-stone-200 bg-white p-3 text-center">
       <div className="text-[11px] font-semibold uppercase tracking-wide text-stone-500">
@@ -650,11 +671,34 @@ function MobileStatCard({ label, value }: { label: string; value: string }) {
   );
 }
 
+function ExternalLink({
+  href,
+  label,
+}: {
+  href: string | null | undefined;
+  label: string;
+}) {
+  if (!href || href.trim() === "") {
+    return null;
+  }
+
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      className="rounded-full border border-stone-300 bg-stone-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-stone-700 hover:bg-stone-100"
+    >
+      {label}
+    </a>
+  );
+}
+
 function bottleHref(review: ReviewSummary) {
   return review.bottle_slug ? `/${review.bottle_slug}` : null;
 }
 
-function getProducerPhotoUrl(filename: string | null | undefined) {
+function getPickerPhotoUrl(filename: string | null | undefined) {
   if (!filename || filename.trim() === "") {
     return null;
   }
@@ -670,7 +714,7 @@ function getProducerPhotoUrl(filename: string | null | undefined) {
 
   const { data } = supabase.storage
     .from("master-whiskey-library")
-    .getPublicUrl(`producers/${cleanFilename}`);
+    .getPublicUrl(`pickers/${cleanFilename}`);
 
   return data.publicUrl;
 }
@@ -687,18 +731,20 @@ function formatLocation(
   return parts.length > 0 ? parts.join(", ") : "—";
 }
 
-function formatAddress(producer: ProducerProfile) {
-  const street = [producer.address_line_1, producer.address_line_2].filter(
+function formatAddress(picker: PickerProfile) {
+  if (picker.full_address && picker.full_address.trim() !== "") {
+    return picker.full_address;
+  }
+
+  const street = [picker.address_line_1, picker.address_line_2].filter(
     (part) => part && part.trim() !== ""
   );
 
-  const cityStateZip = [
-    producer.city,
-    producer.state,
-    producer.postal_code,
-  ].filter((part) => part && part.trim() !== "");
+  const cityStateZip = [picker.city, picker.state, picker.postal_code].filter(
+    (part) => part && part.trim() !== ""
+  );
 
-  const parts = [...street, cityStateZip.join(", "), producer.country].filter(
+  const parts = [...street, cityStateZip.join(", "), picker.country].filter(
     (part) => part && part.trim() !== ""
   );
 
