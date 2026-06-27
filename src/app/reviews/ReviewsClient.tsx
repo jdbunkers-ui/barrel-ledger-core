@@ -1,11 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import NewUpdateStar from "@/components/NewUpdateStar";
 import { supabase } from "@/lib/supabaseClient";
 
 type ReviewSummary = {
   single_barrel_id: string;
+  bottle_slug: string | null;
   bottle_display_name: string | null;
   avg_composite_score: number | null;
   tasting_count: number | null;
@@ -48,6 +50,7 @@ export default function ReviewsClient() {
         .select(
           `
           single_barrel_id,
+          bottle_slug,
           bottle_display_name,
           avg_composite_score,
           tasting_count,
@@ -161,6 +164,10 @@ export default function ReviewsClient() {
     return value?.toFixed(1) ?? "—";
   }
 
+  function bottleHref(review: ReviewSummary) {
+    return review.bottle_slug ? `/${review.bottle_slug}` : null;
+  }
+
   return (
     <section className="mx-auto max-w-6xl px-4 py-6 md:px-6 md:py-12">
       <div className="mb-6 rounded-xl border border-stone-300 bg-white p-4 shadow-sm">
@@ -215,62 +222,71 @@ export default function ReviewsClient() {
 
       {!loading && !errorMessage && (
         <>
-          {/* Mobile card layout */}
           <div className="space-y-3 md:hidden">
-            {filteredAndSortedReviews.map((review) => (
-              <article
-                key={review.single_barrel_id}
-                className="rounded-xl border border-stone-300 bg-white p-4 shadow-sm"
-              >
-                <div className="mb-3 flex items-start gap-2">
-                  <div className="mt-1 w-5 shrink-0">
-                    <NewUpdateStar show={Boolean(review.new_update)} />
+            {filteredAndSortedReviews.map((review) => {
+              const href = bottleHref(review);
+
+              return (
+                <article
+                  key={review.single_barrel_id}
+                  className="rounded-xl border border-stone-300 bg-white p-4 shadow-sm"
+                >
+                  <div className="mb-3 flex items-start gap-2">
+                    <div className="mt-1 w-5 shrink-0">
+                      <NewUpdateStar show={Boolean(review.new_update)} />
+                    </div>
+
+                    <h2 className="text-base font-bold leading-snug text-stone-950">
+                      {href ? (
+                        <Link href={href} className="hover:underline">
+                          {review.bottle_display_name ?? "Unnamed Bottle"}
+                        </Link>
+                      ) : (
+                        review.bottle_display_name ?? "Unnamed Bottle"
+                      )}
+                    </h2>
                   </div>
 
-                  <h2 className="text-base font-bold leading-snug text-stone-950">
-                    {review.bottle_display_name ?? "Unnamed Bottle"}
-                  </h2>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  <div className="rounded-lg bg-stone-100 p-3 text-center">
-                    <div className="text-xs font-semibold uppercase tracking-wide text-stone-600">
-                      Proof
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div className="rounded-lg bg-stone-100 p-3 text-center">
+                      <div className="text-xs font-semibold uppercase tracking-wide text-stone-600">
+                        Proof
+                      </div>
+                      <div className="mt-1 text-lg font-bold text-stone-900">
+                        {formatProof(review.proof)}
+                      </div>
                     </div>
-                    <div className="mt-1 text-lg font-bold text-stone-900">
-                      {formatProof(review.proof)}
+
+                    <div className="rounded-lg bg-stone-100 p-3 text-center">
+                      <div className="text-xs font-semibold uppercase tracking-wide text-stone-600">
+                        Date
+                      </div>
+                      <div className="mt-1 text-lg font-bold text-stone-900">
+                        {formatDate(review.most_recent_created_at)}
+                      </div>
+                    </div>
+
+                    <div className="rounded-lg bg-stone-100 p-3 text-center">
+                      <div className="text-xs font-semibold uppercase tracking-wide text-stone-600">
+                        Tastings
+                      </div>
+                      <div className="mt-1 text-lg font-bold text-stone-900">
+                        {review.tasting_count ?? 0}
+                      </div>
+                    </div>
+
+                    <div className="rounded-lg bg-stone-100 p-3 text-center">
+                      <div className="text-xs font-semibold uppercase tracking-wide text-stone-600">
+                        Score
+                      </div>
+                      <div className="mt-1 text-lg font-bold text-stone-900">
+                        {formatScore(review.avg_composite_score)}
+                      </div>
                     </div>
                   </div>
-
-                  <div className="rounded-lg bg-stone-100 p-3 text-center">
-                    <div className="text-xs font-semibold uppercase tracking-wide text-stone-600">
-                      Date
-                    </div>
-                    <div className="mt-1 text-lg font-bold text-stone-900">
-                      {formatDate(review.most_recent_created_at)}
-                    </div>
-                  </div>
-
-                  <div className="rounded-lg bg-stone-100 p-3 text-center">
-                    <div className="text-xs font-semibold uppercase tracking-wide text-stone-600">
-                      Tastings
-                    </div>
-                    <div className="mt-1 text-lg font-bold text-stone-900">
-                      {review.tasting_count ?? 0}
-                    </div>
-                  </div>
-
-                  <div className="rounded-lg bg-stone-100 p-3 text-center">
-                    <div className="text-xs font-semibold uppercase tracking-wide text-stone-600">
-                      Score
-                    </div>
-                    <div className="mt-1 text-lg font-bold text-stone-900">
-                      {formatScore(review.avg_composite_score)}
-                    </div>
-                  </div>
-                </div>
-              </article>
-            ))}
+                </article>
+              );
+            })}
 
             {filteredAndSortedReviews.length === 0 && (
               <div className="rounded-xl border border-stone-300 bg-white p-6 text-center text-stone-600">
@@ -279,7 +295,6 @@ export default function ReviewsClient() {
             )}
           </div>
 
-          {/* Desktop table layout */}
           <div className="hidden overflow-hidden rounded-xl border border-stone-300 bg-white shadow-sm md:block">
             <table className="w-full border-collapse text-left">
               <thead className="bg-stone-200 text-sm uppercase tracking-wide text-stone-700">
@@ -339,36 +354,46 @@ export default function ReviewsClient() {
               </thead>
 
               <tbody>
-                {filteredAndSortedReviews.map((review) => (
-                  <tr
-                    key={review.single_barrel_id}
-                    className="border-t border-stone-200 hover:bg-stone-50"
-                  >
-                    <td className="px-4 py-3 text-center">
-                      <NewUpdateStar show={Boolean(review.new_update)} />
-                    </td>
+                {filteredAndSortedReviews.map((review) => {
+                  const href = bottleHref(review);
 
-                    <td className="px-4 py-3 text-left font-semibold text-stone-900">
-                      {review.bottle_display_name ?? "Unnamed Bottle"}
-                    </td>
+                  return (
+                    <tr
+                      key={review.single_barrel_id}
+                      className="border-t border-stone-200 hover:bg-stone-50"
+                    >
+                      <td className="px-4 py-3 text-center">
+                        <NewUpdateStar show={Boolean(review.new_update)} />
+                      </td>
 
-                    <td className="px-4 py-3 text-center text-stone-800">
-                      {formatProof(review.proof)}
-                    </td>
+                      <td className="px-4 py-3 text-left font-semibold text-stone-900">
+                        {href ? (
+                          <Link href={href} className="hover:underline">
+                            {review.bottle_display_name ?? "Unnamed Bottle"}
+                          </Link>
+                        ) : (
+                          review.bottle_display_name ?? "Unnamed Bottle"
+                        )}
+                      </td>
 
-                    <td className="px-4 py-3 text-center text-stone-800 whitespace-nowrap">
-                      {formatDate(review.most_recent_created_at)}
-                    </td>
+                      <td className="px-4 py-3 text-center text-stone-800">
+                        {formatProof(review.proof)}
+                      </td>
 
-                    <td className="px-4 py-3 text-center text-stone-800">
-                      {review.tasting_count ?? 0}
-                    </td>
+                      <td className="px-4 py-3 text-center text-stone-800 whitespace-nowrap">
+                        {formatDate(review.most_recent_created_at)}
+                      </td>
 
-                    <td className="px-4 py-3 text-center text-stone-800">
-                      {formatScore(review.avg_composite_score)}
-                    </td>
-                  </tr>
-                ))}
+                      <td className="px-4 py-3 text-center text-stone-800">
+                        {review.tasting_count ?? 0}
+                      </td>
+
+                      <td className="px-4 py-3 text-center text-stone-800">
+                        {formatScore(review.avg_composite_score)}
+                      </td>
+                    </tr>
+                  );
+                })}
 
                 {filteredAndSortedReviews.length === 0 && (
                   <tr>
