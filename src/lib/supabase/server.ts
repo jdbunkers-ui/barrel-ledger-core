@@ -8,9 +8,6 @@ export async function createSupabaseServerClient() {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
-      db: {
-        schema: "barrel_ledger_public",
-      },
       cookies: {
         getAll() {
           return cookieStore.getAll();
@@ -21,10 +18,13 @@ export async function createSupabaseServerClient() {
               cookieStore.set(name, value, options);
             });
           } catch {
-            // Server components cannot always set cookies directly.
+            // This can happen when the Supabase client is used inside a Server Component.
+            // It is safe to ignore here because middleware or route handlers can refresh cookies.
           }
         },
       },
     }
   );
 }
+
+export const createClient = createSupabaseServerClient;
