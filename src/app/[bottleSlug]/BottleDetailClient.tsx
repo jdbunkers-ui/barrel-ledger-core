@@ -72,6 +72,7 @@ type TastingRow = {
 type BottleDetailClientProps = {
   organizationSlug: string;
   bottleSlug: string;
+  canEditReviews: boolean;
 };
 
 type MainSpec = {
@@ -90,6 +91,7 @@ type FeatureSpec = {
 export default function BottleDetailClient({
   organizationSlug,
   bottleSlug,
+  canEditReviews,
 }: BottleDetailClientProps) {
   const [bottle, setBottle] = useState<BottleDetail | null>(null);
   const [tastings, setTastings] = useState<TastingRow[]>([]);
@@ -377,15 +379,26 @@ export default function BottleDetailClient({
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-4 gap-2">
-                    <ScorePill label="Nose" value={tasting.nose_score} />
-                    <ScorePill label="Palate" value={tasting.palate_score} />
-                    <ScorePill label="Finish" value={tasting.finish_score} />
-                    <ScorePill
-                      label="Final"
-                      value={tasting.composite_score}
-                      emphasized
-                    />
+                  <div className="flex flex-col items-start gap-3 md:items-end">
+                    <div className="grid grid-cols-4 gap-2">
+                      <ScorePill label="Nose" value={tasting.nose_score} />
+                      <ScorePill label="Palate" value={tasting.palate_score} />
+                      <ScorePill label="Finish" value={tasting.finish_score} />
+                      <ScorePill
+                        label="Final"
+                        value={tasting.composite_score}
+                        emphasized
+                      />
+                    </div>
+
+                    {canEditReviews && (
+                      <Link
+                        href={`/dashboard/tastings/${tasting.tasting_id}/edit`}
+                        className="rounded border border-stone-300 bg-white px-3 py-1 text-sm font-semibold text-stone-800 hover:bg-stone-100"
+                      >
+                        Edit Review
+                      </Link>
+                    )}
                   </div>
                 </div>
 

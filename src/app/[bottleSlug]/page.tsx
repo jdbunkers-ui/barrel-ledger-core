@@ -1,6 +1,7 @@
 import CustomerHeader from "@/components/CustomerHeader";
 import Navigation from "@/components/Navigation";
 import { getSiteContextByHost } from "@/lib/getSiteContext";
+import { getCurrentMember } from "@/lib/admin";
 import { headers } from "next/headers";
 import BottleDetailClient from "./BottleDetailClient";
 
@@ -33,6 +34,11 @@ export default async function BottleDetailPage({
   const organizationSlug =
     siteWithSlug.organization_slug ?? BRAD_ORGANIZATION_SLUG;
 
+  const member = await getCurrentMember();
+
+  const canEditReviews =
+    member?.member_role === "owner" || member?.member_role === "editor";
+
   return (
     <>
       <CustomerHeader
@@ -49,6 +55,7 @@ export default async function BottleDetailPage({
         <BottleDetailClient
           organizationSlug={organizationSlug}
           bottleSlug={bottleSlug}
+          canEditReviews={canEditReviews}
         />
       </main>
     </>
