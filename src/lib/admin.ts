@@ -10,6 +10,16 @@ export type CurrentMember = {
   member_role: AdminRole;
 };
 
+type CurrentMemberRpcRow = {
+  user_id: string;
+  organization_id: string;
+  member_role: string;
+};
+
+function isAdminRole(value: string): value is AdminRole {
+  return value === "owner" || value === "editor" || value === "viewer";
+}
+
 export async function getCurrentMember(): Promise<CurrentMember | null> {
   const supabase = await createSupabaseServerClient();
 
@@ -28,11 +38,17 @@ export async function getCurrentMember(): Promise<CurrentMember | null> {
     return null;
   }
 
+  const member = data as CurrentMemberRpcRow;
+
+  if (!isAdminRole(member.member_role)) {
+    return null;
+  }
+
   return {
-    user_id: data.user_id,
+    user_id: member.user_id,
     email: user.email ?? null,
-    organization_id: data.organization_id,
-    member_role: data.member_role as AdminRole,
+    organization_id: member.organization_id,
+    member_role: member.member_role,
   };
 }
 
