@@ -2,7 +2,10 @@ import { getSiteContextByHost } from "@/lib/getSiteContext";
 import { headers } from "next/headers";
 import CustomerHeader from "@/components/CustomerHeader";
 import Navigation from "@/components/Navigation";
+import AnalyticsPageView from "@/components/AnalyticsPageView";
 import ProducerDetailClient from "./ProducerDetailClient";
+
+const BRAD_ORGANIZATION_SLUG = "brad-hughes-bourbon-reviews";
 
 type ProducerDetailPageProps = {
   params: Promise<{
@@ -24,8 +27,24 @@ export default async function ProducerDetailPage({
     return <main className="p-10">Site settings not found.</main>;
   }
 
+  const siteWithAnalyticsFields = site as typeof site & {
+    organization_id?: string | null;
+    organization_slug?: string | null;
+  };
+
+  const organizationId = siteWithAnalyticsFields.organization_id ?? "";
+  const organizationSlug =
+    siteWithAnalyticsFields.organization_slug ?? BRAD_ORGANIZATION_SLUG;
+
   return (
     <>
+      <AnalyticsPageView
+        organizationId={organizationId}
+        organizationSlug={organizationSlug}
+        pageType="producer_detail"
+        pageTitle={`Producer Detail - ${producerSlug}`}
+      />
+
       <CustomerHeader
         siteTitle={site.site_title}
         siteSubtitle={site.site_subtitle}
@@ -38,7 +57,7 @@ export default async function ProducerDetailPage({
 
       <main className="min-h-screen bg-stone-100">
         <ProducerDetailClient
-          organizationSlug="brad-hughes-bourbon-reviews"
+          organizationSlug={organizationSlug}
           producerSlug={producerSlug}
         />
       </main>

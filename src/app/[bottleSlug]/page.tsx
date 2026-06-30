@@ -1,5 +1,6 @@
 import CustomerHeader from "@/components/CustomerHeader";
 import Navigation from "@/components/Navigation";
+import AnalyticsPageView from "@/components/AnalyticsPageView";
 import { getSiteContextByHost } from "@/lib/getSiteContext";
 import { getCurrentMember } from "@/lib/admin";
 import { headers } from "next/headers";
@@ -27,12 +28,14 @@ export default async function BottleDetailPage({
     return <main className="p-10">Site settings not found.</main>;
   }
 
-  const siteWithSlug = site as typeof site & {
+  const siteWithAnalyticsFields = site as typeof site & {
+    organization_id?: string | null;
     organization_slug?: string | null;
   };
 
+  const organizationId = siteWithAnalyticsFields.organization_id ?? "";
   const organizationSlug =
-    siteWithSlug.organization_slug ?? BRAD_ORGANIZATION_SLUG;
+    siteWithAnalyticsFields.organization_slug ?? BRAD_ORGANIZATION_SLUG;
 
   const member = await getCurrentMember();
 
@@ -41,6 +44,13 @@ export default async function BottleDetailPage({
 
   return (
     <>
+      <AnalyticsPageView
+        organizationId={organizationId}
+        organizationSlug={organizationSlug}
+        pageType="bottle_detail"
+        pageTitle={`Bottle Detail - ${bottleSlug}`}
+      />
+
       <CustomerHeader
         siteTitle={site.site_title}
         siteSubtitle={site.site_subtitle}

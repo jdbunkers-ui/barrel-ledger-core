@@ -1,5 +1,6 @@
 import CustomerHeader from "@/components/CustomerHeader";
 import Navigation from "@/components/Navigation";
+import AnalyticsPageView from "@/components/AnalyticsPageView";
 import { getSiteContextByHost } from "@/lib/getSiteContext";
 import { headers } from "next/headers";
 import AboutClient from "./AboutClient";
@@ -16,15 +17,24 @@ export default async function AboutPage() {
     return <main className="p-10">Site settings not found.</main>;
   }
 
-  const siteWithSlug = site as typeof site & {
+  const siteWithAnalyticsFields = site as typeof site & {
+    organization_id?: string | null;
     organization_slug?: string | null;
   };
 
+  const organizationId = siteWithAnalyticsFields.organization_id ?? "";
   const organizationSlug =
-    siteWithSlug.organization_slug ?? BRAD_ORGANIZATION_SLUG;
+    siteWithAnalyticsFields.organization_slug ?? BRAD_ORGANIZATION_SLUG;
 
   return (
     <>
+      <AnalyticsPageView
+        organizationId={organizationId}
+        organizationSlug={organizationSlug}
+        pageType="about"
+        pageTitle="About"
+      />
+
       <CustomerHeader
         siteTitle={site.site_title}
         siteSubtitle={site.site_subtitle}
