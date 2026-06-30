@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import NewUpdateStar from "@/components/NewUpdateStar";
+import MasterWhiskeyLibrarySpecs from "@/components/MasterWhiskeyLibrarySpecs";
 import { supabase } from "@/lib/supabaseClient";
 
 type BottleDetail = {
@@ -73,19 +74,6 @@ type BottleDetailClientProps = {
   organizationSlug: string;
   bottleSlug: string;
   canEditReviews: boolean;
-};
-
-type MainSpec = {
-  label: string;
-  value: string;
-  icon: string;
-};
-
-type FeatureSpec = {
-  label: string;
-  value: string;
-  icon: string;
-  booleanValue?: boolean | null;
 };
 
 export default function BottleDetailClient({
@@ -169,82 +157,15 @@ export default function BottleDetailClient({
     loadBottleDetail();
   }, [organizationSlug, bottleSlug]);
 
-  const mainSpecs = useMemo<MainSpec[]>(() => {
-    if (!bottle) return [];
+  const tastingCountLabel = useMemo(() => {
+    const count = bottle?.tasting_count ?? tastings.length;
 
-    return [
-      {
-        label: "Proof",
-        value: formatNumber(bottle.proof),
-        icon: "💧",
-      },
-      {
-        label: "Strength",
-        value: bottle.bottling_strength_type ?? "—",
-        icon: "🥃",
-      },
-      {
-        label: "Subtype",
-        value: bottle.spirit_subtype ?? bottle.spirit_category ?? "—",
-        icon: "🗺️",
-      },
-      {
-        label: "Age",
-        value: bottle.age_display ?? formatAge(bottle.age_years),
-        icon: "⌛",
-      },
-      {
-        label: "Size",
-        value: formatSize(bottle.size_ml),
-        icon: "🍾",
-      },
-      {
-        label: "Mash Bill",
-        value: bottle.mash_bill ?? "—",
-        icon: "🌽",
-      },
-    ];
-  }, [bottle]);
+    if (count === 1) {
+      return "Based on 1 tasting";
+    }
 
-  const featureSpecs = useMemo<FeatureSpec[]>(() => {
-    if (!bottle) return [];
-
-    return [
-      {
-        label: "Single Barrel",
-        value: formatBoolean(bottle.single_barrel_ind),
-        icon: "🛢️",
-        booleanValue: bottle.single_barrel_ind,
-      },
-      {
-        label: "Chill Filtered",
-        value: formatBoolean(bottle.chill_filtered_ind),
-        icon: "▽",
-        booleanValue: bottle.chill_filtered_ind,
-      },
-      {
-        label: "Finished",
-        value: formatBoolean(bottle.finished_ind),
-        icon: "💧",
-        booleanValue: bottle.finished_ind,
-      },
-      {
-        label: "Finish Type",
-        value: bottle.finished_type ?? "—",
-        icon: "🏭",
-      },
-      {
-        label: "Barrel / Batch",
-        value: formatBarrelBatch(bottle.batch_code, bottle.barrel_id),
-        icon: "🛢️",
-      },
-      {
-        label: "Bottling Year",
-        value: bottle.bottling_year ? String(bottle.bottling_year) : "—",
-        icon: "📅",
-      },
-    ];
-  }, [bottle]);
+    return `Based on ${count} tastings`;
+  }, [bottle?.tasting_count, tastings.length]);
 
   if (loading) {
     return (
@@ -296,7 +217,7 @@ export default function BottleDetailClient({
                   {bottle.bottle_display_name ?? "Unnamed Bottle"}
                 </h1>
 
-                <div className="mt-3 space-y-1 text-sm text-stone-700 md:text-base">
+                <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-sm text-stone-700 md:text-base">
                   {bottle.producer_name && (
                     <div>
                       <span className="font-semibold">Producer:</span>{" "}
@@ -318,20 +239,25 @@ export default function BottleDetailClient({
             </div>
           </div>
 
-          <div className="rounded-xl border border-stone-200 bg-stone-50 px-6 py-4 text-center">
-            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-600">
+          <div className="rounded-xl border border-stone-200 bg-stone-50 px-6 py-4 text-center shadow-sm">
+            <div className="text-xs font-semibold uppercase tracking-[0.22em] text-stone-600">
               Composite Score
             </div>
-            <div className="mt-1 text-5xl font-black leading-none text-stone-950">
+
+            <div className="mt-1 font-serif text-5xl font-black leading-none text-stone-950">
               {formatScore(bottle.avg_composite_score)}
             </div>
-            <div className="mt-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-stone-500">
-              Based on {bottle.tasting_count ?? 0} tastings
+
+            <div className="mx-auto mt-3 h-px w-28 bg-amber-600" />
+            <div className="mx-auto mt-1 h-1 w-1 rotate-45 bg-amber-600" />
+
+            <div className="mt-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-stone-500">
+              {tastingCountLabel}
             </div>
           </div>
         </div>
 
-        <BottleSpecsSection mainSpecs={mainSpecs} featureSpecs={featureSpecs} />
+        <MasterWhiskeyLibrarySpecs bottle={bottle} />
       </div>
 
       <div className="mt-6 rounded-2xl border border-stone-300 bg-white p-6 shadow-sm">
@@ -433,144 +359,6 @@ export default function BottleDetailClient({
   );
 }
 
-function BottleSpecsSection({
-  mainSpecs,
-  featureSpecs,
-}: {
-  mainSpecs: MainSpec[];
-  featureSpecs: FeatureSpec[];
-}) {
-  return (
-    <div className="mt-8 overflow-hidden rounded-2xl border border-stone-300 bg-gradient-to-b from-stone-50 to-white shadow-sm">
-      <div className="relative flex items-center justify-center border-b border-stone-300 bg-stone-900 px-4 py-3 text-white shadow-sm">
-        <div className="absolute left-4 hidden h-px w-24 bg-amber-500/70 md:block" />
-        <div className="absolute right-4 hidden h-px w-24 bg-amber-500/70 md:block" />
-
-        <div className="flex items-center gap-3">
-          <span className="rounded-full border border-amber-500/60 bg-stone-800 px-3 py-1 text-lg">
-            🛢️
-          </span>
-
-          <div className="text-center">
-            <div className="text-sm font-black uppercase tracking-[0.35em] text-white">
-              Bottle Specs
-            </div>
-            <div className="mt-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-300">
-              Specs sourced from The Master Whiskey Library
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="animate-[specRollIn_0.45s_ease-out_both] px-4 py-5 md:px-6">
-        <div className="grid gap-0 rounded-xl border border-stone-200 bg-white/80 md:grid-cols-6">
-          {mainSpecs.map((spec, index) => (
-            <MainSpecCell
-              key={`${spec.label}-${spec.value}`}
-              spec={spec}
-              isLast={index === mainSpecs.length - 1}
-            />
-          ))}
-        </div>
-
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-          {featureSpecs.map((spec) => (
-            <FeatureSpecCard
-              key={`${spec.label}-${spec.value}`}
-              spec={spec}
-            />
-          ))}
-        </div>
-      </div>
-
-      <style jsx>{`
-        @keyframes specRollIn {
-          0% {
-            opacity: 0;
-            transform: translateY(-10px) scaleY(0.96);
-            transform-origin: top;
-          }
-          100% {
-            opacity: 1;
-            transform: translateY(0) scaleY(1);
-            transform-origin: top;
-          }
-        }
-      `}</style>
-    </div>
-  );
-}
-
-function MainSpecCell({
-  spec,
-  isLast,
-}: {
-  spec: MainSpec;
-  isLast: boolean;
-}) {
-  return (
-    <div
-      className={`group flex min-h-[126px] flex-col items-center justify-center px-4 py-5 text-center transition duration-200 hover:bg-stone-50 ${
-        isLast ? "" : "border-b border-stone-200 md:border-b-0 md:border-r"
-      }`}
-    >
-      <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-full border border-amber-700/30 bg-amber-900/10 text-2xl shadow-sm transition duration-200 group-hover:scale-110">
-        {spec.icon}
-      </div>
-
-      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-stone-500">
-        {spec.label}
-      </div>
-
-      <div className="mt-2 text-base font-black leading-snug text-stone-950">
-        {spec.value}
-      </div>
-    </div>
-  );
-}
-
-function FeatureSpecCard({ spec }: { spec: FeatureSpec }) {
-  const hasBoolean = spec.booleanValue !== undefined;
-  const isPositive = spec.booleanValue === true;
-  const isNegative = spec.booleanValue === false;
-
-  return (
-    <div className="group rounded-xl border border-stone-200 bg-white px-4 py-4 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md">
-      <div className="flex items-start gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-stone-200 bg-stone-50 text-xl transition duration-200 group-hover:scale-105">
-          {spec.icon}
-        </div>
-
-        <div className="min-w-0">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-stone-500">
-            {spec.label}
-          </div>
-
-          <div className="mt-2 flex items-center gap-2">
-            {hasBoolean && (
-              <span
-                className={`flex h-6 w-6 items-center justify-center rounded-full text-sm font-black ${
-                  isPositive
-                    ? "bg-emerald-100 text-emerald-700"
-                    : isNegative
-                      ? "bg-red-100 text-red-700"
-                      : "bg-stone-100 text-stone-500"
-                }`}
-              >
-                {isPositive ? "✓" : isNegative ? "×" : "—"}
-              </span>
-            )}
-
-            <div className="truncate text-base font-black text-stone-950">
-              {spec.value}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function ScorePill({
   label,
   value,
@@ -637,58 +425,12 @@ function formatScore(value: number | null) {
   return value?.toFixed(1) ?? "—";
 }
 
-function formatNumber(value: number | null) {
-  return value?.toFixed(1) ?? "—";
-}
-
-function formatAge(value: number | null) {
-  if (value === null || value === undefined) return "NAS";
-  if (value <= 0) return "NAS";
-  return `${value.toFixed(1)} yr`;
-}
-
 function formatMoney(value: number | null) {
   if (value === null || value === undefined) return "—";
   return `$${value.toFixed(0)}`;
 }
 
-function formatSize(value: number | null | undefined) {
-  if (value === null || value === undefined) return "—";
-  return `${value} ml`;
-}
-
-function formatBoolean(value: boolean | null | undefined) {
-  if (value === null || value === undefined) return "—";
-  return value ? "Yes" : "No";
-}
-
 function formatYesNo(value: boolean | null | undefined) {
   if (value === null || value === undefined) return "—";
   return value ? "Yes" : "No";
-}
-
-function formatBarrelBatch(
-  batchCode: string | null | undefined,
-  barrelId: string | null | undefined
-) {
-  if (batchCode && batchCode.trim() !== "") {
-    return batchCode;
-  }
-
-  if (!barrelId || barrelId.trim() === "") {
-    return "—";
-  }
-
-  const cleanValue = barrelId.trim();
-
-  const looksLikeInternalId =
-    cleanValue.length > 18 ||
-    /^[a-f0-9-]{16,}$/i.test(cleanValue) ||
-    cleanValue.toLowerCase().startsWith("sb:");
-
-  if (looksLikeInternalId) {
-    return "—";
-  }
-
-  return cleanValue;
 }
