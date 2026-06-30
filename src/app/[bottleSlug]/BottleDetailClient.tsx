@@ -256,8 +256,6 @@ export default function BottleDetailClient({
             </div>
           </div>
         </div>
-
-        <MasterWhiskeyLibrarySpecs bottle={bottle} />
       </div>
 
       <div className="mt-6 rounded-2xl border border-stone-300 bg-white p-6 shadow-sm">
@@ -354,6 +352,10 @@ export default function BottleDetailClient({
             ))}
           </div>
         )}
+      </div>
+
+      <div className="mt-6">
+        <MasterWhiskeyLibrarySpecs bottle={bottle} />
       </div>
     </section>
   );
