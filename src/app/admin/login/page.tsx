@@ -1,11 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
 export default function AdminLoginPage() {
-  const router = useRouter();
   const supabase = createSupabaseBrowserClient();
 
   const [email, setEmail] = useState("");
@@ -25,15 +23,13 @@ export default function AdminLoginPage() {
       password,
     });
 
-    setIsSubmitting(false);
-
     if (error) {
+      setIsSubmitting(false);
       setErrorMessage(error.message);
       return;
     }
 
-    router.push("/admin");
-    router.refresh();
+    window.location.assign("/admin");
   }
 
   return (
@@ -47,9 +43,7 @@ export default function AdminLoginPage() {
 
         <form onSubmit={handleLogin} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium mb-1">
-              Email
-            </label>
+            <label className="block text-sm font-medium mb-1">Email</label>
 
             <input
               type="email"
@@ -62,9 +56,7 @@ export default function AdminLoginPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">
-              Password
-            </label>
+            <label className="block text-sm font-medium mb-1">Password</label>
 
             <input
               type="password"
