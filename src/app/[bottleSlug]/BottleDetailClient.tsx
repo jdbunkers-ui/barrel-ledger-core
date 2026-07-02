@@ -161,7 +161,9 @@ export default function BottleDetailClient({
   useEffect(() => {
     if (!bottle) return;
 
-    const logKey = `${bottle.organization_id}:${bottle.single_barrel_id}:${bottle.bottle_slug}`;
+    const currentBottle = bottle;
+
+    const logKey = `${currentBottle.organization_id}:${currentBottle.single_barrel_id}:${currentBottle.bottle_slug}`;
 
     if (loggedBottleViewRef.current === logKey) return;
 
@@ -175,11 +177,11 @@ export default function BottleDetailClient({
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            organizationId: bottle.organization_id,
-            singleBarrelId: bottle.single_barrel_id,
-            bottleId: bottle.bottle_id ?? null,
-            bottleSlug: bottle.bottle_slug,
-            bottleName: bottle.bottle_display_name ?? null,
+            organizationId: currentBottle.organization_id,
+            singleBarrelId: currentBottle.single_barrel_id,
+            bottleId: currentBottle.bottle_id ?? null,
+            bottleSlug: currentBottle.bottle_slug,
+            bottleName: currentBottle.bottle_display_name ?? null,
             routePath: window.location.pathname,
             siteHost: window.location.host,
           }),
