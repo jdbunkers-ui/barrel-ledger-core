@@ -1,36 +1,16 @@
-"use client";
+import { loginAdmin } from "./actions";
 
-import { useState } from "react";
-import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+type AdminLoginPageProps = {
+  searchParams?: Promise<{
+    error?: string;
+  }>;
+};
 
-export default function AdminLoginPage() {
-  const supabase = createSupabaseBrowserClient();
-
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-
-  const [errorMessage, setErrorMessage] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  async function handleLogin(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    setErrorMessage("");
-    setIsSubmitting(true);
-
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
-    if (error) {
-      setIsSubmitting(false);
-      setErrorMessage(error.message);
-      return;
-    }
-
-    window.location.assign("/admin");
-  }
+export default async function AdminLoginPage({
+  searchParams,
+}: AdminLoginPageProps) {
+  const params = searchParams ? await searchParams : {};
+  const errorMessage = params.error;
 
   return (
     <main className="min-h-screen bg-stone-100 flex items-center justify-center px-6">
@@ -41,14 +21,13 @@ export default function AdminLoginPage() {
           Sign in to manage this Barrel Ledger site.
         </p>
 
-        <form onSubmit={handleLogin} className="space-y-4">
+        <form action={loginAdmin} className="space-y-4">
           <div>
             <label className="block text-sm font-medium mb-1">Email</label>
 
             <input
+              name="email"
               type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
               className="w-full rounded border border-stone-300 px-3 py-2"
               required
               autoComplete="email"
@@ -59,9 +38,8 @@ export default function AdminLoginPage() {
             <label className="block text-sm font-medium mb-1">Password</label>
 
             <input
+              name="password"
               type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
               className="w-full rounded border border-stone-300 px-3 py-2"
               required
               autoComplete="current-password"
@@ -76,10 +54,9 @@ export default function AdminLoginPage() {
 
           <button
             type="submit"
-            disabled={isSubmitting}
-            className="w-full rounded bg-stone-900 text-white px-4 py-2 font-semibold disabled:opacity-60"
+            className="w-full rounded bg-stone-900 text-white px-4 py-2 font-semibold"
           >
-            {isSubmitting ? "Signing in..." : "Sign In"}
+            Sign In
           </button>
         </form>
       </section>
