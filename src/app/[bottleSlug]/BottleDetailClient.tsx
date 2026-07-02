@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import NewUpdateStar from "@/components/NewUpdateStar";
 import MasterWhiskeyLibrarySpecs from "@/components/MasterWhiskeyLibrarySpecs";
@@ -85,6 +85,7 @@ export default function BottleDetailClient({
   const [tastings, setTastings] = useState<TastingRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const loggedBottleViewRef = useRef<string | null>(null);
 
   useEffect(() => {
     async function loadBottleDetail() {
@@ -156,6 +157,45 @@ export default function BottleDetailClient({
 
     loadBottleDetail();
   }, [organizationSlug, bottleSlug]);
+
+  useEffect(() => {
+    if (!bottle) return;
+
+    const logKey = `${bottle.organization_id}:${bottle.single_barrel_id}:${bottle.bottle_slug}`;
+
+    if (loggedBottleViewRef.current === logKey) return;
+
+    loggedBottleViewRef.current = logKey;
+
+    async function logBottleView() {
+      try {
+        const response = await fetch("/api/bottle-view-log", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            organizationId: bottle.organization_id,
+            singleBarrelId: bottle.single_barrel_id,
+            bottleId: bottle.bottle_id ?? null,
+            bottleSlug: bottle.bottle_slug,
+            bottleName: bottle.bottle_display_name ?? null,
+            routePath: window.location.pathname,
+            siteHost: window.location.host,
+          }),
+        });
+
+        if (!response.ok) {
+          const result = await response.json();
+          console.error("Bottle view log failed", response.status, result);
+        }
+      } catch (error) {
+        console.error("Failed to log bottle view", error);
+      }
+    }
+
+    logBottleView();
+  }, [bottle]);
 
   const tastingCountLabel = useMemo(() => {
     const count = bottle?.tasting_count ?? tastings.length;

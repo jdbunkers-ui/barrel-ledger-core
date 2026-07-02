@@ -6,12 +6,47 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getSiteContextByHost } from "@/lib/getSiteContext";
 import { headers } from "next/headers";
 
-export default async function DashboardPage() {
+type DashboardPageProps = {
+  searchParams?: Promise<{
+    bvSort?: string;
+    bvDir?: string;
+  }>;
+};
+
+type BottleViewSortKey = "bottle_name" | "total" | "last_7" | "last_30";
+type SortDirection = "asc" | "desc";
+
+type BottleViewCount = {
+  organization_id: string;
+  single_barrel_id: string | null;
+  bottle_id: string | null;
+  bottle_name: string | null;
+  bottle_slug: string | null;
+  total_bottle_views: number | string | null;
+  bottle_views_last_7_days: number | string | null;
+  bottle_views_last_30_days: number | string | null;
+  most_recent_view_ts: string | null;
+};
+
+export default async function DashboardPage({
+  searchParams,
+}: DashboardPageProps) {
   const member = await requireMember();
   const supabase = await createSupabaseServerClient();
   const headersList = await headers();
   const host = headersList.get("host") ?? "";
   const site = await getSiteContextByHost(host);
+
+  const resolvedSearchParams = searchParams ? await searchParams : {};
+
+  const bottleViewSort = normalizeBottleViewSortKey(
+    resolvedSearchParams.bvSort
+  );
+
+  const bottleViewSortDirection = normalizeSortDirection(
+    resolvedSearchParams.bvDir,
+    bottleViewSort
+  );
 
   const { data: submissions } = await supabase
     .schema("barrel_ledger_public")
@@ -21,12 +56,17 @@ export default async function DashboardPage() {
     .order("create_ts", { ascending: false })
     .limit(25);
 
-  const { data: pageCounts } = await supabase
+  const { data: bottleCountsRaw } = await supabase
     .schema("barrel_ledger_public")
-    .from("v_admin_page_view_counts")
+    .from("v_admin_bottle_view_counts")
     .select("*")
-    .eq("organization_id", member.organization_id)
-    .order("total_page_views", { ascending: false });
+    .eq("organization_id", member.organization_id);
+
+  const bottleCounts = sortBottleViewCounts(
+    (bottleCountsRaw ?? []) as BottleViewCount[],
+    bottleViewSort,
+    bottleViewSortDirection
+  );
 
   return (
     <main className="min-h-screen bg-stone-100">
@@ -70,6 +110,7 @@ export default async function DashboardPage() {
 
         <section className="mb-8 rounded border border-stone-300 bg-white p-6">
           <h2 className="mb-4 text-2xl font-bold">Bottle Submissions</h2>
+
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead>
@@ -80,12 +121,14 @@ export default async function DashboardPage() {
                   <th className="py-2">Status</th>
                 </tr>
               </thead>
+
               <tbody>
                 {(submissions ?? []).map((s) => (
                   <tr key={s.submission_id} className="border-b">
                     <td className="py-2">
                       {new Date(s.create_ts).toLocaleDateString()}
                     </td>
+
                     <td className="py-2">
                       {[
                         s.distillery_name,
@@ -96,9 +139,11 @@ export default async function DashboardPage() {
                         .filter(Boolean)
                         .join(" - ") || "Bottle submission"}
                     </td>
+
                     <td className="py-2">
                       {s.submitted_bottle_type ?? "Standard"}
                     </td>
+
                     <td className="py-2 font-semibold">
                       {s.submission_status}
                     </td>
@@ -110,26 +155,90 @@ export default async function DashboardPage() {
         </section>
 
         <section className="rounded border border-stone-300 bg-white p-6">
-          <h2 className="mb-4 text-2xl font-bold">Page Views</h2>
+          <h2 className="mb-4 text-2xl font-bold">Bottle Views</h2>
+
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead>
                 <tr className="border-b">
-                  <th className="py-2">Page Type</th>
-                  <th className="py-2">Total</th>
-                  <th className="py-2">Last 7 Days</th>
-                  <th className="py-2">Last 30 Days</th>
+                  <th className="py-2 text-left">
+                    <BottleViewSortLink
+                      label="Bottle Name"
+                      sortKey="bottle_name"
+                      activeSortKey={bottleViewSort}
+                      activeDirection={bottleViewSortDirection}
+                      align="left"
+                    />
+                  </th>
+
+                  <th className="py-2 text-right">
+                    <BottleViewSortLink
+                      label="Total"
+                      sortKey="total"
+                      activeSortKey={bottleViewSort}
+                      activeDirection={bottleViewSortDirection}
+                      align="right"
+                    />
+                  </th>
+
+                  <th className="py-2 text-right">
+                    <BottleViewSortLink
+                      label="Last 7 Days"
+                      sortKey="last_7"
+                      activeSortKey={bottleViewSort}
+                      activeDirection={bottleViewSortDirection}
+                      align="right"
+                    />
+                  </th>
+
+                  <th className="py-2 text-right">
+                    <BottleViewSortLink
+                      label="Last 30 Days"
+                      sortKey="last_30"
+                      activeSortKey={bottleViewSort}
+                      activeDirection={bottleViewSortDirection}
+                      align="right"
+                    />
+                  </th>
                 </tr>
               </thead>
+
               <tbody>
-                {(pageCounts ?? []).map((p) => (
-                  <tr key={p.page_type} className="border-b">
-                    <td className="py-2">{p.page_type}</td>
-                    <td className="py-2">{p.total_page_views}</td>
-                    <td className="py-2">{p.page_views_last_7_days}</td>
-                    <td className="py-2">{p.page_views_last_30_days}</td>
+                {bottleCounts.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="py-4 text-sm text-stone-500">
+                      No bottle views have been logged yet.
+                    </td>
                   </tr>
-                ))}
+                ) : (
+                  bottleCounts.map((p) => (
+                    <tr
+                      key={
+                        p.single_barrel_id ??
+                        p.bottle_slug ??
+                        p.bottle_name ??
+                        "unknown-bottle"
+                      }
+                      className="border-b"
+                    >
+                      <td className="py-2 text-left">
+                        {p.bottle_name ?? p.bottle_slug ?? "Unknown Bottle"}
+                      </td>
+
+                      <td className="py-2 text-right tabular-nums">
+                        {formatCount(p.total_bottle_views)}
+                      </td>
+
+                      <td className="py-2 text-right tabular-nums">
+                        {formatCount(p.bottle_views_last_7_days)}
+                      </td>
+
+                      <td className="py-2 text-right tabular-nums">
+                        {formatCount(p.bottle_views_last_30_days)}
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
@@ -137,4 +246,123 @@ export default async function DashboardPage() {
       </section>
     </main>
   );
+}
+
+function BottleViewSortLink({
+  label,
+  sortKey,
+  activeSortKey,
+  activeDirection,
+  align,
+}: {
+  label: string;
+  sortKey: BottleViewSortKey;
+  activeSortKey: BottleViewSortKey;
+  activeDirection: SortDirection;
+  align: "left" | "right";
+}) {
+  const isActive = sortKey === activeSortKey;
+  const nextDirection: SortDirection =
+    isActive && activeDirection === "desc" ? "asc" : "desc";
+
+  return (
+    <Link
+      href={`/dashboard?bvSort=${sortKey}&bvDir=${nextDirection}`}
+      className={`inline-flex items-center gap-1 font-semibold hover:underline ${
+        align === "right" ? "justify-end" : "justify-start"
+      }`}
+    >
+      <span>{label}</span>
+      <span className="text-xs text-stone-500">
+        {isActive ? (activeDirection === "desc" ? "↓" : "↑") : "↕"}
+      </span>
+    </Link>
+  );
+}
+
+function normalizeBottleViewSortKey(
+  value: string | undefined
+): BottleViewSortKey {
+  if (
+    value === "bottle_name" ||
+    value === "total" ||
+    value === "last_7" ||
+    value === "last_30"
+  ) {
+    return value;
+  }
+
+  return "total";
+}
+
+function normalizeSortDirection(
+  value: string | undefined,
+  sortKey: BottleViewSortKey
+): SortDirection {
+  if (value === "asc" || value === "desc") {
+    return value;
+  }
+
+  if (sortKey === "bottle_name") {
+    return "asc";
+  }
+
+  return "desc";
+}
+
+function sortBottleViewCounts(
+  rows: BottleViewCount[],
+  sortKey: BottleViewSortKey,
+  direction: SortDirection
+) {
+  const sortedRows = [...rows];
+
+  sortedRows.sort((a, b) => {
+    let comparison = 0;
+
+    if (sortKey === "bottle_name") {
+      comparison = getBottleName(a).localeCompare(getBottleName(b));
+    }
+
+    if (sortKey === "total") {
+      comparison =
+        toNumber(a.total_bottle_views) - toNumber(b.total_bottle_views);
+    }
+
+    if (sortKey === "last_7") {
+      comparison =
+        toNumber(a.bottle_views_last_7_days) -
+        toNumber(b.bottle_views_last_7_days);
+    }
+
+    if (sortKey === "last_30") {
+      comparison =
+        toNumber(a.bottle_views_last_30_days) -
+        toNumber(b.bottle_views_last_30_days);
+    }
+
+    return direction === "asc" ? comparison : comparison * -1;
+  });
+
+  return sortedRows;
+}
+
+function getBottleName(row: BottleViewCount) {
+  return row.bottle_name ?? row.bottle_slug ?? "Unknown Bottle";
+}
+
+function toNumber(value: number | string | null) {
+  if (value === null || value === undefined) return 0;
+
+  const parsedValue = Number(value);
+
+  if (Number.isNaN(parsedValue)) {
+    return 0;
+  }
+
+  return parsedValue;
+}
+
+function formatCount(value: number | string | null) {
+  return toNumber(value).toLocaleString();
 }
