@@ -12,10 +12,16 @@ type ProducerOption = {
   distillery_name: string | null;
 };
 
+type BottleDetailSubmissionRequirement =
+  | "NONE"
+  | "BATCH_REQUIRED"
+  | "SINGLE_BARREL_REQUIRED";
+
 type BottleOption = {
   bottle_id: string;
   bottle_display_name: string | null;
   distillery_id: string | null;
+  detail_submission_requirement: BottleDetailSubmissionRequirement | null;
 };
 
 type PickerOption = {
@@ -41,7 +47,14 @@ export default async function SubmitBottlePage() {
   const { data: bottles } = await supabase
     .schema("barrel_ledger_public")
     .from("v_admin_bottle_options")
-    .select("bottle_id, bottle_display_name, distillery_id")
+    .select(
+      `
+      bottle_id,
+      bottle_display_name,
+      distillery_id,
+      detail_submission_requirement
+    `
+    )
     .order("bottle_display_name", { ascending: true });
 
   const { data: pickers } = await supabase
