@@ -1,5 +1,7 @@
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getSiteContextByHost } from "@/lib/getSiteContext";
 
 export type AdminRole = "owner" | "editor" | "viewer";
 
@@ -29,9 +31,19 @@ export async function getCurrentMember(): Promise<CurrentMember | null> {
 
   if (!user) return null;
 
+  const headersList = await headers();
+  const host = headersList.get("host") ?? "";
+  const site = await getSiteContextByHost(host);
+
+  if (!site?.organization?.organization_id) {
+    return null;
+  }
+
   const { data, error } = await supabase
     .schema("barrel_ledger_public")
-    .rpc("get_current_member")
+    .rpc("get_current_member_for_organization", {
+      p_organization_id: site.organization.organization_id,
+    })
     .maybeSingle();
 
   if (error || !data) {
