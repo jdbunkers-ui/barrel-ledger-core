@@ -17,6 +17,10 @@ type ReviewSummary = {
   search_text: string | null;
 };
 
+type ReviewsClientProps = {
+  organizationSlug: string;
+};
+
 type SortKey =
   | "bottle_display_name"
   | "proof"
@@ -28,7 +32,7 @@ type SortDirection = "asc" | "desc";
 
 const proofOptions = Array.from({ length: 61 }, (_, index) => 80 + index);
 
-export default function ReviewsClient() {
+export default function ReviewsClient({ organizationSlug }: ReviewsClientProps) {
   const [reviews, setReviews] = useState<ReviewSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -60,6 +64,7 @@ export default function ReviewsClient() {
           search_text
         `
         )
+        .eq("organization_slug", organizationSlug)
         .order("most_recent_created_at", { ascending: false })
         .limit(100);
 
@@ -74,7 +79,7 @@ export default function ReviewsClient() {
     }
 
     loadReviews();
-  }, []);
+  }, [organizationSlug]);
 
   const filteredAndSortedReviews = useMemo(() => {
     const normalizedSearch = searchText.trim().toLowerCase();
@@ -290,7 +295,7 @@ export default function ReviewsClient() {
 
             {filteredAndSortedReviews.length === 0 && (
               <div className="rounded-xl border border-stone-300 bg-white p-6 text-center text-stone-600">
-                No reviews match the current filters.
+                No reviews have been published yet.
               </div>
             )}
           </div>
@@ -401,7 +406,7 @@ export default function ReviewsClient() {
                       colSpan={6}
                       className="px-4 py-8 text-center text-stone-600"
                     >
-                      No reviews match the current filters.
+                      No reviews have been published yet.
                     </td>
                   </tr>
                 )}

@@ -14,6 +14,8 @@ export default async function Home() {
     return <main className="p-10">Site settings not found.</main>;
   }
 
+  const organizationSlug = site.organization.organization_slug;
+
   return (
     <>
       <CustomerHeader
@@ -27,8 +29,8 @@ export default async function Home() {
       <Navigation />
 
       <main className="min-h-screen bg-stone-100">
-        <ReviewsClient />
+        <ReviewsClient organizationSlug={organizationSlug} />
       </main>
     </>
   );
-} 
+}
