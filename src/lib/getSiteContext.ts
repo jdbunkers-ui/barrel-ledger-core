@@ -7,7 +7,7 @@ type SiteContextRow = {
   site_subtitle: string | null;
   logo_url: string | null;
   banner_url: string | null;
-  primary_color: string | null;
+  primary_color: string;
   organization_id: string;
   organization_name: string;
   organization_slug: string;
@@ -15,13 +15,28 @@ type SiteContextRow = {
   subscription_tier: string;
 };
 
-function mapSiteContext(data: SiteContextRow) {
+type SiteContext = {
+  site_title: string;
+  site_subtitle: string | null;
+  logo_url: string | null;
+  banner_url: string | null;
+  primary_color: string;
+  organization: {
+    organization_id: string;
+    organization_name: string;
+    organization_slug: string;
+    primary_domain: string | null;
+    subscription_tier: string;
+  };
+};
+
+function mapSiteContext(data: SiteContextRow): SiteContext {
   return {
     site_title: data.site_title,
     site_subtitle: data.site_subtitle,
     logo_url: data.logo_url,
     banner_url: data.banner_url,
-    primary_color: data.primary_color,
+    primary_color: data.primary_color ?? "#0B4F8A",
     organization: {
       organization_id: data.organization_id,
       organization_name: data.organization_name,
@@ -32,7 +47,7 @@ function mapSiteContext(data: SiteContextRow) {
   };
 }
 
-export async function getSiteContext(slug: string) {
+export async function getSiteContext(slug: string): Promise<SiteContext | null> {
   const { data, error } = await supabase
     .schema("barrel_ledger_public")
     .from("v_site_context")
@@ -62,7 +77,9 @@ export async function getSiteContext(slug: string) {
   return mapSiteContext(data as SiteContextRow);
 }
 
-export async function getSiteContextByHost(host: string) {
+export async function getSiteContextByHost(
+  host: string
+): Promise<SiteContext | null> {
   const cleanHost = host
     .replace(/^https?:\/\//, "")
     .replace(/^www\./, "")
