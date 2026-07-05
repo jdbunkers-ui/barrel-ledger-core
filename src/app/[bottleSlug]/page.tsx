@@ -6,8 +6,6 @@ import { getCurrentMember } from "@/lib/admin";
 import { headers } from "next/headers";
 import BottleDetailClient from "./BottleDetailClient";
 
-const BRAD_ORGANIZATION_SLUG = "brad-hughes-bourbon-reviews";
-
 type BottleDetailPageProps = {
   params: Promise<{
     bottleSlug: string;
@@ -28,14 +26,8 @@ export default async function BottleDetailPage({
     return <main className="p-10">Site settings not found.</main>;
   }
 
-  const siteWithAnalyticsFields = site as typeof site & {
-    organization_id?: string | null;
-    organization_slug?: string | null;
-  };
-
-  const organizationId = siteWithAnalyticsFields.organization_id ?? "";
-  const organizationSlug =
-    siteWithAnalyticsFields.organization_slug ?? BRAD_ORGANIZATION_SLUG;
+  const organizationId = site.organization.organization_id;
+  const organizationSlug = site.organization.organization_slug;
 
   const member = await getCurrentMember();
 

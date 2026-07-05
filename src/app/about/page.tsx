@@ -5,8 +5,6 @@ import { getSiteContextByHost } from "@/lib/getSiteContext";
 import { headers } from "next/headers";
 import AboutClient from "./AboutClient";
 
-const BRAD_ORGANIZATION_SLUG = "brad-hughes-bourbon-reviews";
-
 export default async function AboutPage() {
   const headersList = await headers();
   const host = headersList.get("host") ?? "";
@@ -17,14 +15,8 @@ export default async function AboutPage() {
     return <main className="p-10">Site settings not found.</main>;
   }
 
-  const siteWithAnalyticsFields = site as typeof site & {
-    organization_id?: string | null;
-    organization_slug?: string | null;
-  };
-
-  const organizationId = siteWithAnalyticsFields.organization_id ?? "";
-  const organizationSlug =
-    siteWithAnalyticsFields.organization_slug ?? BRAD_ORGANIZATION_SLUG;
+  const organizationId = site.organization.organization_id;
+  const organizationSlug = site.organization.organization_slug;
 
   return (
     <>

@@ -38,13 +38,11 @@ type SortKey =
 type SortDirection = "asc" | "desc";
 
 type ProducersClientProps = {
-  organizationSlug?: string;
+  organizationSlug: string;
 };
 
-const DEFAULT_ORGANIZATION_SLUG = "brad-hughes-bourbon-reviews";
-
 export default function ProducersClient({
-  organizationSlug = DEFAULT_ORGANIZATION_SLUG,
+  organizationSlug,
 }: ProducersClientProps) {
   const [producers, setProducers] = useState<ProducerSummary[]>([]);
   const [loading, setLoading] = useState(true);

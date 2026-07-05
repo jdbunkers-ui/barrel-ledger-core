@@ -5,8 +5,6 @@ import Navigation from "@/components/Navigation";
 import AnalyticsPageView from "@/components/AnalyticsPageView";
 import PickerDetailClient from "./PickerDetailClient";
 
-const BRAD_ORGANIZATION_SLUG = "brad-hughes-bourbon-reviews";
-
 type PickerDetailPageProps = {
   params: Promise<{
     pickerSlug: string;
@@ -27,14 +25,8 @@ export default async function PickerDetailPage({
     return <main className="p-10">Site settings not found.</main>;
   }
 
-  const siteWithAnalyticsFields = site as typeof site & {
-    organization_id?: string | null;
-    organization_slug?: string | null;
-  };
-
-  const organizationId = siteWithAnalyticsFields.organization_id ?? "";
-  const organizationSlug =
-    siteWithAnalyticsFields.organization_slug ?? BRAD_ORGANIZATION_SLUG;
+  const organizationId = site.organization.organization_id;
+  const organizationSlug = site.organization.organization_slug;
 
   return (
     <>
