@@ -57,6 +57,17 @@ export async function submitBottleAction(formData: FormData) {
   const pickOrBatchName = val(formData, "pick_name");
   const newPickerName = val(formData, "barrel_picker_name");
 
+  const batchCode = val(formData, "batch_code");
+  const bottlingYear = intVal(formData, "bottling_year");
+
+  const requiresDetail =
+    barrelType === "SINGLE_BARREL" || barrelType === "VINTAGE_BATCH";
+
+  const hasBarrelPicker = Boolean(existingPickerId || newPickerName);
+  const hasBatchRelease = Boolean(
+    pickOrBatchName || batchCode || bottlingYear !== null
+  );
+
   if (!existingDistilleryId && !newProducerName) {
     throw new Error(
       "Select an existing producer or provide a new producer name."
@@ -72,18 +83,15 @@ export async function submitBottleAction(formData: FormData) {
     );
   }
 
-  if (
-    (barrelType === "SINGLE_BARREL" || barrelType === "VINTAGE_BATCH") &&
-    !pickOrBatchName
-  ) {
+  if (requiresDetail && !hasBarrelPicker && !hasBatchRelease) {
     throw new Error(
-      "A pick name, batch name, or release name is required for single barrel picks and batch details."
+      "Enter either barrel picker/store pick details or batch/release details."
     );
   }
 
-  if (barrelType === "SINGLE_BARREL" && !existingPickerId && !newPickerName) {
+  if (requiresDetail && hasBarrelPicker && hasBatchRelease) {
     throw new Error(
-      "A barrel picker is required for single barrel / store pick submissions. Select an existing picker or create a new picker."
+      "Use either barrel picker/store pick details or batch/release details, not both."
     );
   }
 
@@ -151,7 +159,8 @@ export async function submitBottleAction(formData: FormData) {
       size_ml: intVal(formData, "size_ml"),
       finished_ind: boolVal(formData, "finished_ind", false),
       chill_filtered_ind: boolVal(formData, "chill_filtered_ind", false),
-      single_barrel_ind: barrelType === "SINGLE_BARREL",
+      single_barrel_ind:
+        barrelType === "SINGLE_BARREL" || barrelType === "VINTAGE_BATCH",
       mash_bill: val(formData, "mash_bill"),
       finished_type: val(formData, "finished_type"),
       peat_level: val(formData, "peat_level"),
@@ -176,8 +185,8 @@ export async function submitBottleAction(formData: FormData) {
         existing_barrel_picker_id: existingPickerId,
         bottle_detail_type: barrelType,
         pick_name: pickOrBatchName,
-        bottling_year: intVal(formData, "bottling_year"),
-        batch_code: val(formData, "batch_code"),
+        bottling_year: bottlingYear,
+        batch_code: batchCode,
         warehouse: val(formData, "sb_warehouse"),
         cask_strength: boolVal(formData, "cask_strength", false),
         abv_override: num(formData, "abv_override"),

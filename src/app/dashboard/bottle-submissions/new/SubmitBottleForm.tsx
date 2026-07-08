@@ -181,8 +181,7 @@ export default function SubmitBottleForm({
     selectedBottle?.detail_submission_requirement ?? "NONE";
 
   const selectedBottleForcesBatchDetail =
-    isExistingBottle &&
-    selectedBottleDetailRequirement === "BATCH_REQUIRED";
+    isExistingBottle && selectedBottleDetailRequirement === "BATCH_REQUIRED";
 
   const selectedBottleForcesSingleBarrelDetail =
     isExistingBottle &&
@@ -193,7 +192,7 @@ export default function SubmitBottleForm({
 
   const isSingleBarrelSubmission = submissionType === "SINGLE_BARREL";
   const isBatchSubmission = submissionType === "VINTAGE_BATCH";
-  const requiresPickOrBatchName = isSingleBarrelSubmission || isBatchSubmission;
+  const requiresDetail = isSingleBarrelSubmission || isBatchSubmission;
 
   useEffect(() => {
     if (producerMode === "new") {
@@ -218,32 +217,18 @@ export default function SubmitBottleForm({
 
     if (selectedBottleDetailRequirement === "BATCH_REQUIRED") {
       setSubmissionType("VINTAGE_BATCH");
+      setPickerMode("none");
       return;
     }
 
     if (selectedBottleDetailRequirement === "SINGLE_BARREL_REQUIRED") {
       setSubmissionType("SINGLE_BARREL");
-
-      if (pickerMode === "none") {
-        setPickerMode("existing");
-      }
-
       return;
     }
 
     setSubmissionType("");
-  }, [
-    isExistingBottle,
-    selectedBottle,
-    selectedBottleDetailRequirement,
-    pickerMode,
-  ]);
-
-  useEffect(() => {
-    if (isSingleBarrelSubmission && pickerMode === "none") {
-      setPickerMode("existing");
-    }
-  }, [isSingleBarrelSubmission, pickerMode]);
+    setPickerMode("none");
+  }, [isExistingBottle, selectedBottle, selectedBottleDetailRequirement]);
 
   function useExistingProducerInstead() {
     setProducerMode("existing");
@@ -255,34 +240,34 @@ export default function SubmitBottleForm({
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     const formData = new FormData(event.currentTarget);
 
-    if (requiresPickOrBatchName) {
-      const pickName = String(formData.get("pick_name") ?? "").trim();
+    const existingPickerId = String(
+      formData.get("existing_barrel_picker_id") ?? ""
+    ).trim();
 
-      if (!pickName) {
-        event.preventDefault();
-        alert(
-          isSingleBarrelSubmission
-            ? "Please enter a pick name for this single barrel / store pick."
-            : "Please enter a batch name or release name for this batch detail."
-        );
-        return;
-      }
+    const newPickerName = String(
+      formData.get("barrel_picker_name") ?? ""
+    ).trim();
+
+    const pickName = String(formData.get("pick_name") ?? "").trim();
+    const batchCode = String(formData.get("batch_code") ?? "").trim();
+    const bottlingYear = String(formData.get("bottling_year") ?? "").trim();
+
+    const hasBarrelPicker = Boolean(existingPickerId || newPickerName);
+    const hasBatchRelease = Boolean(pickName || batchCode || bottlingYear);
+
+    if (requiresDetail && !hasBarrelPicker && !hasBatchRelease) {
+      event.preventDefault();
+      alert(
+        "Enter either barrel picker/store pick details or batch/release details."
+      );
+      return;
     }
 
-    if (isSingleBarrelSubmission) {
-      const existingPickerId = String(
-        formData.get("existing_barrel_picker_id") ?? ""
-      ).trim();
-      const newPickerName = String(
-        formData.get("barrel_picker_name") ?? ""
-      ).trim();
-
-      if (!existingPickerId && !newPickerName) {
-        event.preventDefault();
-        alert(
-          "Please select an existing barrel picker or create a new barrel picker for this single barrel / store pick."
-        );
-      }
+    if (requiresDetail && hasBarrelPicker && hasBatchRelease) {
+      event.preventDefault();
+      alert(
+        "Use either barrel picker/store pick details or batch/release details, not both."
+      );
     }
   }
 
@@ -308,14 +293,6 @@ export default function SubmitBottleForm({
         value={isNewBottle ? "new" : "existing"}
       />
       <input type="hidden" name="picker_mode" value={pickerMode} />
-
-      {selectedBottleForcesDetail && (
-        <input
-          type="hidden"
-          name="submitted_bottle_type"
-          value={submissionType}
-        />
-      )}
 
       <FormSection
         eyebrow="1"
@@ -389,10 +366,7 @@ export default function SubmitBottleForm({
               </summary>
 
               <div className="mt-4 grid gap-3 md:grid-cols-2">
-                <FormField
-                  label="Canonical Producer Name"
-                  hint="Example: Jack Daniel Distillery"
-                >
+                <FormField label="Canonical Producer Name">
                   <input
                     name="canonical_distillery_name"
                     placeholder="Canonical Producer Name"
@@ -416,7 +390,7 @@ export default function SubmitBottleForm({
                   />
                 </FormField>
 
-                <FormField label="City" hint="Example: Bardstown">
+                <FormField label="City">
                   <input
                     name="city"
                     placeholder="City"
@@ -546,15 +520,21 @@ export default function SubmitBottleForm({
         {selectedBottleForcesBatchDetail && (
           <div className="mt-4 rounded border border-amber-200 bg-amber-50 p-3 text-sm text-stone-800">
             This bottle requires a specific batch or annual release. Step 3 has
-            been set to <span className="font-semibold">Vintage / Batch Detail</span>.
+            been set to{" "}
+            <span className="font-semibold">Vintage / Batch Detail</span>.
           </div>
         )}
 
         {selectedBottleForcesSingleBarrelDetail && (
           <div className="mt-4 rounded border border-amber-200 bg-amber-50 p-3 text-sm text-stone-800">
-            This bottle requires a specific single barrel or store pick. Step 3
-            has been set to{" "}
-            <span className="font-semibold">Single Barrel / Store Pick</span>.
+            This bottle requires detail-level information. Step 3 has been set
+            to{" "}
+            <span className="font-semibold">
+              Single Barrel / Store Pick
+            </span>
+            , but you may change it to{" "}
+            <span className="font-semibold">Vintage / Batch Detail</span> for
+            batch or annual releases.
           </div>
         )}
 
@@ -633,10 +613,7 @@ export default function SubmitBottleForm({
                   />
                 </FormField>
 
-                <FormField
-                  label="Age in Months"
-                  hint="Example: 120 for 10 years"
-                >
+                <FormField label="Age in Months">
                   <input
                     name="age_in_month_qty"
                     inputMode="numeric"
@@ -645,10 +622,7 @@ export default function SubmitBottleForm({
                   />
                 </FormField>
 
-                <FormField
-                  label="ABV"
-                  hint="Enter ABV, not proof. Example: 55.45"
-                >
+                <FormField label="ABV">
                   <input
                     name="abv"
                     inputMode="decimal"
@@ -665,7 +639,7 @@ export default function SubmitBottleForm({
                   />
                 </FormField>
 
-                <FormField label="MSRP" hint="Example: 69.99">
+                <FormField label="MSRP">
                   <input
                     name="msrp"
                     inputMode="decimal"
@@ -690,10 +664,7 @@ export default function SubmitBottleForm({
                   <BooleanSelect name="chill_filtered_ind" />
                 </FormField>
 
-                <FormField
-                  label="Mash Bill"
-                  hint="Example: 72% corn, 18% rye, 10% malted barley"
-                >
+                <FormField label="Mash Bill">
                   <input
                     name="mash_bill"
                     placeholder="Mash Bill"
@@ -735,74 +706,74 @@ export default function SubmitBottleForm({
         title="Bottle Detail Type"
         description={
           selectedBottleForcesDetail
-            ? "This bottle requires detail-level information before it can be submitted."
+            ? "This bottle requires detail-level information. Choose exactly one path: barrel picker/store pick or batch/annual release."
             : "Leave this as standard unless you are submitting a specific batch, annual release, single barrel, or store pick."
         }
       >
         <FormField label="Submission Type">
           <select
-            name={
-              selectedBottleForcesDetail
-                ? "submitted_bottle_type_display"
-                : "submitted_bottle_type"
-            }
+            name="submitted_bottle_type"
             value={submissionType}
-            disabled={selectedBottleForcesDetail}
+            required={selectedBottleForcesDetail}
             onChange={(event) => {
               const nextSubmissionType = event.target.value;
               setSubmissionType(nextSubmissionType);
 
-              if (
-                nextSubmissionType === "SINGLE_BARREL" &&
-                pickerMode === "none"
-              ) {
-                setPickerMode("existing");
+              if (nextSubmissionType === "VINTAGE_BATCH") {
+                setPickerMode("none");
               }
             }}
-            className="w-full rounded border border-stone-300 bg-white p-2 disabled:bg-stone-100 disabled:text-stone-500"
+            className="w-full rounded border border-stone-300 bg-white p-2"
           >
-            <option value="">Standard Batched Bottle</option>
+            <option value="" disabled={selectedBottleForcesDetail}>
+              Standard Batched Bottle
+            </option>
             <option value="SINGLE_BARREL">Single Barrel / Store Pick</option>
             <option value="VINTAGE_BATCH">Vintage / Batch Detail</option>
           </select>
         </FormField>
 
         <details
-          open={requiresPickOrBatchName}
+          open={requiresDetail}
           className="mt-4 rounded-lg border border-stone-200 bg-white p-4"
         >
           <summary className="cursor-pointer font-semibold text-stone-900">
-            {requiresPickOrBatchName
-              ? "Required batch / single barrel details"
+            {requiresDetail
+              ? "Required detail record"
               : "Optional batch / single barrel details"}
           </summary>
+
+          {requiresDetail && (
+            <div className="mb-4 rounded border border-stone-200 bg-stone-50 p-3 text-sm text-stone-700">
+              Choose exactly one: barrel picker/store pick details or
+              batch/release details. They cannot both be blank and they cannot
+              both be populated.
+            </div>
+          )}
 
           <div className="mt-4 grid gap-3 md:grid-cols-2">
             <FormField
               label={
                 isSingleBarrelSubmission
-                  ? "Pick Name *"
+                  ? "Pick Name / Release Name"
                   : isBatchSubmission
-                    ? "Batch / Release Name *"
+                    ? "Batch / Release Name"
                     : "Pick Name / Release Name"
               }
               hint={
                 isSingleBarrelSubmission
-                  ? "Required. Example: Bottle King Wayne NJ Pick"
+                  ? "Use only if this is the batch/release path. Leave blank when using a barrel picker."
                   : isBatchSubmission
-                    ? "Required. Example: Batch 4, 2025 Release, B523"
-                    : "Optional unless this is a single barrel pick or batch detail."
+                    ? "Example: Batch 4, 2025 Release, B523"
+                    : "Optional unless this is a batch or annual release."
               }
             >
               <input
                 name="pick_name"
-                required={requiresPickOrBatchName}
                 placeholder={
-                  isSingleBarrelSubmission
-                    ? "Bottle King Wayne NJ Pick"
-                    : isBatchSubmission
-                      ? "Batch 4, 2025 Release, B523"
-                      : "Bottle King Wayne NJ Pick, Batch 4, 2025 Release"
+                  isBatchSubmission
+                    ? "Batch 4, 2025 Release, B523"
+                    : "Bottle King Wayne NJ Pick, Batch 4, 2025 Release"
                 }
                 className="w-full rounded border border-stone-300 p-2"
               />
@@ -895,27 +866,14 @@ export default function SubmitBottleForm({
       <FormSection
         eyebrow="4"
         title="Barrel Picker"
-        description={
-          isSingleBarrelSubmission
-            ? "Required for single barrel / store pick submissions. Select an existing picker or create a new picker."
-            : "Only use this if the bottle is a store pick, club pick, or selected by a known picker."
-        }
+        description="Use this only when the detail record is a store pick, club pick, or selected by a known picker. Leave it as No Picker for batch or annual releases."
       >
         <div className="grid gap-3 md:grid-cols-3">
           <PickerChoice
             checked={pickerMode === "none"}
-            onChange={() => {
-              if (!isSingleBarrelSubmission) {
-                setPickerMode("none");
-              }
-            }}
+            onChange={() => setPickerMode("none")}
             title="No Picker"
-            description={
-              isSingleBarrelSubmission
-                ? "Not available for single barrel picks"
-                : "Most submissions"
-            }
-            disabled={isSingleBarrelSubmission}
+            description="Batch / annual release"
           />
 
           <PickerChoice
@@ -939,7 +897,6 @@ export default function SubmitBottleForm({
               <select
                 name="existing_barrel_picker_id"
                 value={selectedPickerId}
-                required={isSingleBarrelSubmission && isExistingPicker}
                 onChange={(event) => setSelectedPickerId(event.target.value)}
                 className="w-full rounded border border-stone-300 bg-white p-2"
               >
@@ -959,17 +916,9 @@ export default function SubmitBottleForm({
 
         {isNewPicker && (
           <div className="mt-5 rounded-lg border border-amber-200 bg-amber-50/60 p-4">
-            <FormField
-              label={
-                isSingleBarrelSubmission
-                  ? "New Barrel Picker Name *"
-                  : "New Barrel Picker Name"
-              }
-              hint="Example: Bottle King Wayne NJ"
-            >
+            <FormField label="New Barrel Picker Name" hint="Example: Bottle King Wayne NJ">
               <input
                 name="barrel_picker_name"
-                required={isSingleBarrelSubmission && isNewPicker}
                 placeholder="New Barrel Picker Name"
                 className="w-full rounded border border-stone-300 p-2"
               />
@@ -1102,7 +1051,9 @@ function FormSection({
         </h2>
 
         {description && (
-          <p className="mt-1 text-sm leading-6 text-stone-600">{description}</p>
+          <p className="mt-1 text-sm leading-6 text-stone-600">
+            {description}
+          </p>
         )}
       </div>
 
@@ -1212,41 +1163,30 @@ function PickerChoice({
   onChange,
   title,
   description,
-  disabled = false,
 }: {
   checked: boolean;
   onChange: () => void;
   title: string;
   description: string;
-  disabled?: boolean;
 }) {
   return (
     <label
       className={`cursor-pointer rounded-lg border p-4 ${
-        disabled
-          ? "cursor-not-allowed border-stone-200 bg-stone-100 text-stone-400"
-          : checked
-            ? "border-amber-500 bg-amber-50"
-            : "border-stone-300 bg-white hover:bg-stone-50"
+        checked
+          ? "border-amber-500 bg-amber-50"
+          : "border-stone-300 bg-white hover:bg-stone-50"
       }`}
     >
-      <div className="flex items-start gap-3">
-        <input
-          type="radio"
-          name="picker_mode_radio"
-          checked={checked}
-          disabled={disabled}
-          onChange={onChange}
-          className="mt-1 h-4 w-4 accent-stone-900 disabled:accent-stone-300"
-        />
+      <input
+        type="radio"
+        name="picker_mode_radio"
+        checked={checked}
+        onChange={onChange}
+        className="mr-2 h-4 w-4 accent-stone-900"
+      />
 
-        <span>
-          <span className="block font-bold text-stone-950">{title}</span>
-          <span className="mt-1 block text-sm text-stone-600">
-            {description}
-          </span>
-        </span>
-      </div>
+      <span className="font-bold text-stone-950">{title}</span>
+      <span className="mt-1 block text-xs text-stone-600">{description}</span>
     </label>
   );
 }
