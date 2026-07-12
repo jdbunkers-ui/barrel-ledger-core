@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import CustomerHeader from "@/components/CustomerHeader";
 import Navigation from "@/components/Navigation";
@@ -13,7 +14,12 @@ type DashboardPageProps = {
   }>;
 };
 
-type BottleViewSortKey = "bottle_name" | "total" | "last_7" | "last_30";
+type BottleViewSortKey =
+  | "bottle_name"
+  | "last_24"
+  | "last_7"
+  | "total";
+
 type SortDirection = "asc" | "desc";
 
 type BottleViewCount = {
@@ -25,7 +31,16 @@ type BottleViewCount = {
   total_bottle_views: number | string | null;
   bottle_views_last_7_days: number | string | null;
   bottle_views_last_30_days: number | string | null;
+  bottle_views_last_24_hours: number | string | null;
   most_recent_view_ts: string | null;
+};
+
+type BarrelLedgerUpdate = {
+  update_id: string;
+  update_title: string;
+  update_description: string | null;
+  publish_ts: string;
+  new_update: boolean;
 };
 
 export default async function DashboardPage({
@@ -48,25 +63,42 @@ export default async function DashboardPage({
     bottleViewSort
   );
 
-  const { data: submissions } = await supabase
-    .schema("barrel_ledger_public")
-    .from("v_admin_bottle_submission_status")
-    .select("*")
-    .eq("organization_id", member.organization_id)
-    .order("create_ts", { ascending: false })
-    .limit(25);
+  const [
+    { data: submissions },
+    { data: bottleCountsRaw },
+    { data: updatesRaw },
+  ] = await Promise.all([
+    supabase
+      .schema("barrel_ledger_public")
+      .from("v_admin_bottle_submission_status")
+      .select("*")
+      .eq("organization_id", member.organization_id)
+      .order("create_ts", { ascending: false })
+      .limit(25),
 
-  const { data: bottleCountsRaw } = await supabase
-    .schema("barrel_ledger_public")
-    .from("v_admin_bottle_view_counts")
-    .select("*")
-    .eq("organization_id", member.organization_id);
+    supabase
+      .schema("barrel_ledger_public")
+      .from("v_admin_bottle_view_counts")
+      .select("*")
+      .eq("organization_id", member.organization_id),
+
+    supabase
+      .schema("barrel_ledger_public")
+      .from("v_barrel_ledger_updates")
+      .select(
+        "update_id, update_title, update_description, publish_ts, new_update"
+      )
+      .order("publish_ts", { ascending: false })
+      .limit(3),
+  ]);
 
   const bottleCounts = sortBottleViewCounts(
     (bottleCountsRaw ?? []) as BottleViewCount[],
     bottleViewSort,
     bottleViewSortDirection
   );
+
+  const updates = (updatesRaw ?? []) as BarrelLedgerUpdate[];
 
   return (
     <main className="min-h-screen bg-stone-100">
@@ -107,6 +139,56 @@ export default async function DashboardPage({
             Change Password
           </Link>
         </div>
+
+        <section className="mb-8 rounded border border-stone-300 bg-white p-6">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <h2 className="text-2xl font-bold">BarrelLedger Updates</h2>
+
+            <Link
+              href="/dashboard/updates"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex w-fit items-center rounded border border-stone-400 px-4 py-2 text-sm font-semibold hover:bg-stone-100"
+            >
+              View All Updates
+              <span className="ml-2" aria-hidden="true">
+                ↗
+              </span>
+            </Link>
+          </div>
+
+          {updates.length === 0 ? (
+            <p className="text-sm text-stone-500">
+              No BarrelLedger updates have been published yet.
+            </p>
+          ) : (
+            <div className="divide-y divide-stone-200">
+              {updates.map((update) => (
+                <article key={update.update_id} className="py-4 first:pt-0">
+                  <div className="flex items-start gap-3">
+                    {update.new_update && <NewUpdateStar />}
+
+                    <div className="min-w-0">
+                      <h3 className="font-semibold text-stone-900">
+                        {update.update_title}
+                      </h3>
+
+                      <p className="mt-1 text-xs text-stone-500">
+                        {formatUpdateDate(update.publish_ts)}
+                      </p>
+
+                      {update.update_description && (
+                        <p className="mt-2 text-sm leading-6 text-stone-700">
+                          {update.update_description}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
 
         <section className="mb-8 rounded border border-stone-300 bg-white p-6">
           <h2 className="mb-4 text-2xl font-bold">Bottle Submissions</h2>
@@ -173,8 +255,8 @@ export default async function DashboardPage({
 
                   <th className="py-2 text-right">
                     <BottleViewSortLink
-                      label="Total"
-                      sortKey="total"
+                      label="Last 24 Hours"
+                      sortKey="last_24"
                       activeSortKey={bottleViewSort}
                       activeDirection={bottleViewSortDirection}
                       align="right"
@@ -193,8 +275,8 @@ export default async function DashboardPage({
 
                   <th className="py-2 text-right">
                     <BottleViewSortLink
-                      label="Last 30 Days"
-                      sortKey="last_30"
+                      label="Total"
+                      sortKey="total"
                       activeSortKey={bottleViewSort}
                       activeDirection={bottleViewSortDirection}
                       align="right"
@@ -226,7 +308,7 @@ export default async function DashboardPage({
                       </td>
 
                       <td className="py-2 text-right tabular-nums">
-                        {formatCount(p.total_bottle_views)}
+                        {formatCount(p.bottle_views_last_24_hours)}
                       </td>
 
                       <td className="py-2 text-right tabular-nums">
@@ -234,7 +316,7 @@ export default async function DashboardPage({
                       </td>
 
                       <td className="py-2 text-right tabular-nums">
-                        {formatCount(p.bottle_views_last_30_days)}
+                        {formatCount(p.total_bottle_views)}
                       </td>
                     </tr>
                   ))
@@ -245,6 +327,19 @@ export default async function DashboardPage({
         </section>
       </section>
     </main>
+  );
+}
+
+function NewUpdateStar() {
+  return (
+    <Image
+      src="/images/gold_spinning_star.gif"
+      alt="New update"
+      width={28}
+      height={28}
+      unoptimized
+      className="mt-0.5 shrink-0"
+    />
   );
 }
 
@@ -262,6 +357,7 @@ function BottleViewSortLink({
   align: "left" | "right";
 }) {
   const isActive = sortKey === activeSortKey;
+
   const nextDirection: SortDirection =
     isActive && activeDirection === "desc" ? "asc" : "desc";
 
@@ -273,6 +369,7 @@ function BottleViewSortLink({
       }`}
     >
       <span>{label}</span>
+
       <span className="text-xs text-stone-500">
         {isActive ? (activeDirection === "desc" ? "↓" : "↑") : "↕"}
       </span>
@@ -285,14 +382,14 @@ function normalizeBottleViewSortKey(
 ): BottleViewSortKey {
   if (
     value === "bottle_name" ||
-    value === "total" ||
+    value === "last_24" ||
     value === "last_7" ||
-    value === "last_30"
+    value === "total"
   ) {
     return value;
   }
 
-  return "total";
+  return "last_24";
 }
 
 function normalizeSortDirection(
@@ -324,9 +421,10 @@ function sortBottleViewCounts(
       comparison = getBottleName(a).localeCompare(getBottleName(b));
     }
 
-    if (sortKey === "total") {
+    if (sortKey === "last_24") {
       comparison =
-        toNumber(a.total_bottle_views) - toNumber(b.total_bottle_views);
+        toNumber(a.bottle_views_last_24_hours) -
+        toNumber(b.bottle_views_last_24_hours);
     }
 
     if (sortKey === "last_7") {
@@ -335,10 +433,10 @@ function sortBottleViewCounts(
         toNumber(b.bottle_views_last_7_days);
     }
 
-    if (sortKey === "last_30") {
+    if (sortKey === "total") {
       comparison =
-        toNumber(a.bottle_views_last_30_days) -
-        toNumber(b.bottle_views_last_30_days);
+        toNumber(a.total_bottle_views) -
+        toNumber(b.total_bottle_views);
     }
 
     return direction === "asc" ? comparison : comparison * -1;
@@ -352,7 +450,9 @@ function getBottleName(row: BottleViewCount) {
 }
 
 function toNumber(value: number | string | null) {
-  if (value === null || value === undefined) return 0;
+  if (value === null || value === undefined) {
+    return 0;
+  }
 
   const parsedValue = Number(value);
 
@@ -365,4 +465,12 @@ function toNumber(value: number | string | null) {
 
 function formatCount(value: number | string | null) {
   return toNumber(value).toLocaleString();
+}
+
+function formatUpdateDate(value: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  }).format(new Date(value));
 }

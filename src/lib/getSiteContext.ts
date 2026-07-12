@@ -1,6 +1,6 @@
 import { supabase } from "@/lib/supabaseClient";
 
-const DEVELOPMENT_FALLBACK_SLUG = "brad-hughes-bourbon-reviews";
+const DEFAULT_DEVELOPMENT_FALLBACK_SLUG = "honey-barrel-hunter";
 
 type SiteContextRow = {
   site_title: string;
@@ -15,7 +15,7 @@ type SiteContextRow = {
   subscription_tier: string;
 };
 
-type SiteContext = {
+export type SiteContext = {
   site_title: string;
   site_subtitle: string | null;
   logo_url: string | null;
@@ -47,7 +47,41 @@ function mapSiteContext(data: SiteContextRow): SiteContext {
   };
 }
 
-export async function getSiteContext(slug: string): Promise<SiteContext | null> {
+function normalizeHost(host: string): string {
+  return host
+    .replace(/^https?:\/\//, "")
+    .replace(/^www\./, "")
+    .split(":")[0]
+    .toLowerCase()
+    .trim();
+}
+
+function isDevelopmentHost(host: string): boolean {
+  return (
+    !host ||
+    host === "localhost" ||
+    host === "127.0.0.1" ||
+    host === "::1" ||
+    host.endsWith(".app.github.dev")
+  );
+}
+
+function getDevelopmentFallbackSlug(): string {
+  return (
+    process.env.DEV_DEFAULT_ORGANIZATION_SLUG?.trim() ||
+    DEFAULT_DEVELOPMENT_FALLBACK_SLUG
+  );
+}
+
+export async function getSiteContext(
+  slug: string
+): Promise<SiteContext | null> {
+  const cleanSlug = slug.trim();
+
+  if (!cleanSlug) {
+    return null;
+  }
+
   const { data, error } = await supabase
     .schema("barrel_ledger_public")
     .from("v_site_context")
@@ -63,11 +97,13 @@ export async function getSiteContext(slug: string): Promise<SiteContext | null> 
       primary_domain,
       subscription_tier
     `)
-    .eq("organization_slug", slug)
+    .eq("organization_slug", cleanSlug)
     .maybeSingle();
 
   if (error) {
-    throw new Error(error.message);
+    throw new Error(
+      `Unable to load site context for slug "${cleanSlug}": ${error.message}`
+    );
   }
 
   if (!data) {
@@ -80,15 +116,15 @@ export async function getSiteContext(slug: string): Promise<SiteContext | null> 
 export async function getSiteContextByHost(
   host: string
 ): Promise<SiteContext | null> {
-  const cleanHost = host
-    .replace(/^https?:\/\//, "")
-    .replace(/^www\./, "")
-    .split(":")[0]
-    .toLowerCase()
-    .trim();
+  const cleanHost = normalizeHost(host);
 
-  if (!cleanHost) {
-    return getSiteContext(DEVELOPMENT_FALLBACK_SLUG);
+  /*
+   * Localhost and GitHub Codespaces do not have customer domains mapped in
+   * v_site_context, so they intentionally use the configured development
+   * organization.
+   */
+  if (isDevelopmentHost(cleanHost)) {
+    return getSiteContext(getDevelopmentFallbackSlug());
   }
 
   const { data, error } = await supabase
@@ -110,12 +146,18 @@ export async function getSiteContextByHost(
     .maybeSingle();
 
   if (error) {
-    throw new Error(error.message);
+    throw new Error(
+      `Unable to load site context for host "${cleanHost}": ${error.message}`
+    );
   }
 
   if (data) {
     return mapSiteContext(data as SiteContextRow);
   }
 
-  return getSiteContext(DEVELOPMENT_FALLBACK_SLUG);
+  /*
+   * Do not silently show Honey Barrel Hunter for an unknown production
+   * hostname. An unmapped production domain should fail safely.
+   */
+  return null;
 }
