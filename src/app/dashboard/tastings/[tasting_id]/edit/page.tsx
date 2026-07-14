@@ -4,7 +4,10 @@ import { requireEditor } from "@/lib/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getSiteContextByHost } from "@/lib/getSiteContext";
 import { headers } from "next/headers";
-import { hideTastingAction, updateTastingAction } from "../../actions";
+import {
+  hideTastingAction,
+  updateTastingAction,
+} from "../../actions";
 
 type PageProps = {
   params: Promise<{
@@ -12,16 +15,18 @@ type PageProps = {
   }>;
 };
 
-export default async function EditTastingPage({ params }: PageProps) {
+export default async function EditTastingPage({
+  params,
+}: PageProps) {
   await requireEditor();
 
   const { tasting_id } = await params;
-
   const supabase = await createSupabaseServerClient();
 
   const headersList = await headers();
   const host = headersList.get("host") ?? "";
-  const referer = headersList.get("referer") ?? "/dashboard";
+  const referer =
+    headersList.get("referer") ?? "/dashboard";
 
   const site = await getSiteContextByHost(host);
 
@@ -30,17 +35,17 @@ export default async function EditTastingPage({ params }: PageProps) {
     .from("v_reviews")
     .select(
       `
-      tasting_id,
-      tasting_date,
-      nose_score,
-      palate_score,
-      finish_score,
-      composite_score,
-      nose_notes,
-      palate_notes,
-      finish_notes,
-      overall_notes
-    `
+        tasting_id,
+        tasting_date,
+        nose_score,
+        palate_score,
+        finish_score,
+        composite_score,
+        nose_notes,
+        palate_notes,
+        finish_notes,
+        overall_notes
+      `
     )
     .eq("tasting_id", tasting_id)
     .maybeSingle();
@@ -108,82 +113,103 @@ export default async function EditTastingPage({ params }: PageProps) {
       <Navigation />
 
       <section className="mx-auto max-w-3xl px-6 py-10">
-        <h1 className="text-4xl font-bold">Edit Review</h1>
+        <h1 className="text-4xl font-bold">
+          Edit Review
+        </h1>
 
         <p className="mt-2 text-stone-700">
-          Tasting Date: {tasting.tasting_date ?? "—"}
+          Tasting Date:{" "}
+          {tasting.tasting_date ?? "—"}
         </p>
+
+        <section className="mt-6 rounded border border-stone-300 bg-stone-50 p-6">
+          <h2 className="text-xl font-bold text-stone-950">
+            Tasting Scores
+          </h2>
+
+          <p className="mt-1 text-sm text-stone-600">
+            Scores are preserved from the original tasting
+            submission and cannot be edited here.
+          </p>
+
+          <div className="mt-4 grid gap-4 md:grid-cols-4">
+            <ScoreCard
+              label="Nose"
+              value={tasting.nose_score}
+            />
+
+            <ScoreCard
+              label="Palate"
+              value={tasting.palate_score}
+            />
+
+            <ScoreCard
+              label="Finish"
+              value={tasting.finish_score}
+            />
+
+            <ScoreCard
+              label="Overall"
+              value={tasting.composite_score}
+            />
+          </div>
+        </section>
 
         <form
           action={updateTastingAction}
           className="mt-6 rounded border border-stone-300 bg-white p-6"
         >
-          <input type="hidden" name="tasting_id" value={tasting.tasting_id} />
-          <input type="hidden" name="return_to" value={referer} />
+          <input
+            type="hidden"
+            name="tasting_id"
+            value={tasting.tasting_id}
+          />
 
-          <div className="grid gap-4 md:grid-cols-3">
-            <div>
-              <label className="mb-2 block font-semibold">Nose Score</label>
-              <input
-                name="nose_score"
-                defaultValue={tasting.nose_score ?? ""}
-                type="number"
-                step="0.1"
-                min="0"
-                max="10"
-                className="w-full rounded border p-2"
-              />
-            </div>
+          <input
+            type="hidden"
+            name="return_to"
+            value={referer}
+          />
 
-            <div>
-              <label className="mb-2 block font-semibold">Palate Score</label>
-              <input
-                name="palate_score"
-                defaultValue={tasting.palate_score ?? ""}
-                type="number"
-                step="0.1"
-                min="0"
-                max="10"
-                className="w-full rounded border p-2"
-              />
-            </div>
+          <p className="mb-5 text-sm leading-6 text-stone-600">
+            Update the written review below. Original structured
+            sensory selections remain unchanged.
+          </p>
 
-            <div>
-              <label className="mb-2 block font-semibold">Finish Score</label>
-              <input
-                name="finish_score"
-                defaultValue={tasting.finish_score ?? ""}
-                type="number"
-                step="0.1"
-                min="0"
-                max="10"
-                className="w-full rounded border p-2"
-              />
-            </div>
-          </div>
+          <label className="mb-2 block font-semibold">
+            Nose Notes
+          </label>
 
-          <label className="mb-2 mt-4 block font-semibold">Nose Notes</label>
           <textarea
             name="nose_notes"
             defaultValue={tasting.nose_notes ?? ""}
             className="mb-4 min-h-24 w-full rounded border p-2"
           />
 
-          <label className="mb-2 block font-semibold">Palate Notes</label>
+          <label className="mb-2 block font-semibold">
+            Palate Notes
+          </label>
+
           <textarea
             name="palate_notes"
             defaultValue={tasting.palate_notes ?? ""}
             className="mb-4 min-h-24 w-full rounded border p-2"
           />
 
-          <label className="mb-2 block font-semibold">Finish Notes</label>
+          <label className="mb-2 block font-semibold">
+            Finish Notes
+          </label>
+
           <textarea
             name="finish_notes"
             defaultValue={tasting.finish_notes ?? ""}
             className="mb-4 min-h-24 w-full rounded border p-2"
           />
 
-          <label className="mb-2 block font-semibold">Overall Notes</label>
+          <label className="mb-2 block font-semibold">
+            Overall Notes
+          </label>
+
           <textarea
             name="overall_notes"
             defaultValue={tasting.overall_notes ?? ""}
@@ -198,9 +224,21 @@ export default async function EditTastingPage({ params }: PageProps) {
           </button>
         </form>
 
-        <form action={hideTastingAction} className="mt-4">
-          <input type="hidden" name="tasting_id" value={tasting.tasting_id} />
-          <input type="hidden" name="return_to" value={referer} />
+        <form
+          action={hideTastingAction}
+          className="mt-4"
+        >
+          <input
+            type="hidden"
+            name="tasting_id"
+            value={tasting.tasting_id}
+          />
+
+          <input
+            type="hidden"
+            name="return_to"
+            value={referer}
+          />
 
           <button
             type="submit"
@@ -210,10 +248,33 @@ export default async function EditTastingPage({ params }: PageProps) {
           </button>
 
           <p className="mt-2 text-sm text-stone-600">
-            This does not delete the database row. It sets fact_tastings.is_deleted to true.
+            This does not delete the database row. It sets
+            fact_tastings.is_deleted to true.
           </p>
         </form>
       </section>
     </main>
+  );
+}
+
+function ScoreCard({
+  label,
+  value,
+}: {
+  label: string;
+  value: number | null;
+}) {
+  return (
+    <div className="rounded border border-stone-200 bg-white p-4">
+      <div className="text-sm font-semibold text-stone-600">
+        {label}
+      </div>
+
+      <div className="mt-1 text-2xl font-bold text-stone-950">
+        {value === null || value === undefined
+          ? "—"
+          : Number(value).toFixed(1)}
+      </div>
+    </div>
   );
 }

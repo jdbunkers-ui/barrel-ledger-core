@@ -40,6 +40,20 @@ type SingleBarrelOption = {
   age_years?: number | null;
 };
 
+type SensoryNoteOption = {
+  sensory_stage: "NOSE" | "PALATE" | "FINISH";
+  sensory_category_id: string;
+  category_code: string;
+  category_name: string;
+  category_description: string | null;
+  category_display_order: number;
+  sensory_note_id: string;
+  sensory_note_code: string;
+  sensory_note_name: string;
+  sensory_note_description: string | null;
+  note_display_order: number;
+};
+
 export default async function AddTastingPage() {
   await requireEditor();
 
@@ -49,29 +63,82 @@ export default async function AddTastingPage() {
   const host = headersList.get("host") ?? "";
   const site = await getSiteContextByHost(host);
 
-  const { data: producers } = await supabase
+  const { data: producers, error: producersError } = await supabase
     .schema("barrel_ledger_public")
     .from("v_admin_distillery_options")
     .select("distillery_id, distillery_name")
     .order("distillery_name", { ascending: true });
 
-  const { data: bottles } = await supabase
+  if (producersError) {
+    throw new Error(
+      `Unable to load producers: ${producersError.message}`
+    );
+  }
+
+  const { data: bottles, error: bottlesError } = await supabase
     .schema("barrel_ledger_public")
     .from("v_admin_bottle_options")
     .select("bottle_id, bottle_display_name, distillery_id")
     .order("bottle_display_name", { ascending: true });
 
-  const { data: pickers } = await supabase
+  if (bottlesError) {
+    throw new Error(
+      `Unable to load bottles: ${bottlesError.message}`
+    );
+  }
+
+  const { data: pickers, error: pickersError } = await supabase
     .schema("barrel_ledger_public")
     .from("v_admin_barrel_picker_options")
     .select("barrel_picker_id, barrel_picker_name")
     .order("barrel_picker_name", { ascending: true });
 
-  const { data: singleBarrels } = await supabase
-    .schema("barrel_ledger_public")
-    .from("v_admin_single_barrel_options")
-    .select("*")
-    .order("bottle_display_name", { ascending: true });
+  if (pickersError) {
+    throw new Error(
+      `Unable to load barrel pickers: ${pickersError.message}`
+    );
+  }
+
+  const { data: singleBarrels, error: singleBarrelsError } =
+    await supabase
+      .schema("barrel_ledger_public")
+      .from("v_admin_single_barrel_options")
+      .select("*")
+      .order("bottle_display_name", { ascending: true });
+
+  if (singleBarrelsError) {
+    throw new Error(
+      `Unable to load bottle records: ${singleBarrelsError.message}`
+    );
+  }
+
+  const { data: sensoryNotes, error: sensoryNotesError } =
+    await supabase
+      .schema("barrel_ledger_public")
+      .from("v_sensory_note_selector")
+      .select(
+        `
+          sensory_stage,
+          sensory_category_id,
+          category_code,
+          category_name,
+          category_description,
+          category_display_order,
+          sensory_note_id,
+          sensory_note_code,
+          sensory_note_name,
+          sensory_note_description,
+          note_display_order
+        `
+      )
+      .order("category_display_order", { ascending: true })
+      .order("note_display_order", { ascending: true });
+
+  if (sensoryNotesError) {
+    throw new Error(
+      `Unable to load sensory notes: ${sensoryNotesError.message}`
+    );
+  }
 
   return (
     <main className="min-h-screen bg-stone-100">
@@ -93,9 +160,9 @@ export default async function AddTastingPage() {
         </h1>
 
         <p className="mb-6 text-stone-700">
-          Search/select an approved bottle from the Master Whiskey Library, then
-          add scores and notes. Pending bottle submissions cannot be reviewed
-          until approved.
+          Search and select an approved bottle from the Master Whiskey
+          Library, then add scores and tasting notes. Pending bottle
+          submissions cannot be reviewed until approved.
         </p>
 
         <AddTastingForm
@@ -103,7 +170,12 @@ export default async function AddTastingPage() {
           producers={(producers ?? []) as ProducerOption[]}
           bottles={(bottles ?? []) as BottleOption[]}
           pickers={(pickers ?? []) as PickerOption[]}
-          singleBarrels={(singleBarrels ?? []) as SingleBarrelOption[]}
+          singleBarrels={
+            (singleBarrels ?? []) as SingleBarrelOption[]
+          }
+          sensoryNotes={
+            (sensoryNotes ?? []) as SensoryNoteOption[]
+          }
         />
       </section>
     </main>
