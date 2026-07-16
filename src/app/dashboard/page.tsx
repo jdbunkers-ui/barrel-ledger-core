@@ -413,33 +413,80 @@ function sortBottleViewCounts(
   direction: SortDirection
 ) {
   const sortedRows = [...rows];
+  const directionMultiplier = direction === "asc" ? 1 : -1;
 
   sortedRows.sort((a, b) => {
-    let comparison = 0;
+    const aLast24 = toNumber(a.bottle_views_last_24_hours);
+    const bLast24 = toNumber(b.bottle_views_last_24_hours);
 
-    if (sortKey === "bottle_name") {
-      comparison = getBottleName(a).localeCompare(getBottleName(b));
+    const aLast7 = toNumber(a.bottle_views_last_7_days);
+    const bLast7 = toNumber(b.bottle_views_last_7_days);
+
+    const aTotal = toNumber(a.total_bottle_views);
+    const bTotal = toNumber(b.total_bottle_views);
+
+    let comparisons: number[];
+
+    switch (sortKey) {
+      case "last_24":
+        comparisons = [
+          aLast24 - bLast24,
+          aLast7 - bLast7,
+          aTotal - bTotal,
+        ];
+        break;
+
+      case "last_7":
+        comparisons = [
+          aLast7 - bLast7,
+          aLast24 - bLast24,
+          aTotal - bTotal,
+        ];
+        break;
+
+      case "total":
+        comparisons = [
+          aTotal - bTotal,
+          aLast24 - bLast24,
+          aLast7 - bLast7,
+        ];
+        break;
+
+      case "bottle_name":
+      default: {
+        const nameComparison = getBottleName(a).localeCompare(
+          getBottleName(b),
+          undefined,
+          {
+            numeric: true,
+            sensitivity: "base",
+          }
+        );
+
+        if (nameComparison !== 0) {
+          return nameComparison * directionMultiplier;
+        }
+
+        return (
+          getBottleName(a).localeCompare(getBottleName(b), undefined, {
+            numeric: true,
+            sensitivity: "variant",
+          }) * directionMultiplier
+        );
+      }
     }
 
-    if (sortKey === "last_24") {
-      comparison =
-        toNumber(a.bottle_views_last_24_hours) -
-        toNumber(b.bottle_views_last_24_hours);
+    for (const comparison of comparisons) {
+      if (comparison !== 0) {
+        return comparison * directionMultiplier;
+      }
     }
 
-    if (sortKey === "last_7") {
-      comparison =
-        toNumber(a.bottle_views_last_7_days) -
-        toNumber(b.bottle_views_last_7_days);
-    }
-
-    if (sortKey === "total") {
-      comparison =
-        toNumber(a.total_bottle_views) -
-        toNumber(b.total_bottle_views);
-    }
-
-    return direction === "asc" ? comparison : comparison * -1;
+    // Final deterministic tie-breaker.
+    return getBottleName(a).localeCompare(getBottleName(b), undefined, {
+      numeric: true,
+      sensitivity: "base",
+    });
   });
 
   return sortedRows;

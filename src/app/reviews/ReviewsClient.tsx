@@ -66,7 +66,7 @@ export default function ReviewsClient({ organizationSlug }: ReviewsClientProps) 
         )
         .eq("organization_slug", organizationSlug)
         .order("most_recent_created_at", { ascending: false })
-        .limit(100);
+        .limit(250);
 
       if (error) {
         setErrorMessage(error.message);
@@ -166,7 +166,7 @@ export default function ReviewsClient({ organizationSlug }: ReviewsClientProps) 
   }
 
   function formatScore(value: number | null) {
-    return value?.toFixed(1) ?? "—";
+    return value?.toFixed(2) ?? "—";
   }
 
   function bottleHref(review: ReviewSummary) {
