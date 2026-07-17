@@ -205,29 +205,29 @@ export default async function DashboardPage({
               </thead>
 
               <tbody>
-                {(submissions ?? []).map((s) => (
-                  <tr key={s.submission_id} className="border-b">
+                {(submissions ?? []).map((submission) => (
+                  <tr key={submission.submission_id} className="border-b">
                     <td className="py-2">
-                      {new Date(s.create_ts).toLocaleDateString()}
+                      {new Date(submission.create_ts).toLocaleDateString()}
                     </td>
 
                     <td className="py-2">
                       {[
-                        s.distillery_name,
-                        s.brand_name,
-                        s.expression_name,
-                        s.pick_name,
+                        submission.distillery_name,
+                        submission.brand_name,
+                        submission.expression_name,
+                        submission.pick_name,
                       ]
                         .filter(Boolean)
                         .join(" - ") || "Bottle submission"}
                     </td>
 
                     <td className="py-2">
-                      {s.submitted_bottle_type ?? "Standard"}
+                      {submission.submitted_bottle_type ?? "Standard"}
                     </td>
 
                     <td className="py-2 font-semibold">
-                      {s.submission_status}
+                      {submission.submission_status}
                     </td>
                   </tr>
                 ))}
@@ -293,30 +293,32 @@ export default async function DashboardPage({
                     </td>
                   </tr>
                 ) : (
-                  bottleCounts.map((p) => (
+                  bottleCounts.map((row) => (
                     <tr
                       key={
-                        p.single_barrel_id ??
-                        p.bottle_slug ??
-                        p.bottle_name ??
+                        row.single_barrel_id ??
+                        row.bottle_slug ??
+                        row.bottle_name ??
                         "unknown-bottle"
                       }
                       className="border-b"
                     >
                       <td className="py-2 text-left">
-                        {p.bottle_name ?? p.bottle_slug ?? "Unknown Bottle"}
+                        {row.bottle_name ??
+                          row.bottle_slug ??
+                          "Unknown Bottle"}
                       </td>
 
                       <td className="py-2 text-right tabular-nums">
-                        {formatCount(p.bottle_views_last_24_hours)}
+                        {formatCount(row.bottle_views_last_24_hours)}
                       </td>
 
                       <td className="py-2 text-right tabular-nums">
-                        {formatCount(p.bottle_views_last_7_days)}
+                        {formatCount(row.bottle_views_last_7_days)}
                       </td>
 
                       <td className="py-2 text-right tabular-nums">
-                        {formatCount(p.total_bottle_views)}
+                        {formatCount(row.total_bottle_views)}
                       </td>
                     </tr>
                   ))
@@ -357,9 +359,26 @@ function BottleViewSortLink({
   align: "left" | "right";
 }) {
   const isActive = sortKey === activeSortKey;
+  const isBottleName = sortKey === "bottle_name";
 
-  const nextDirection: SortDirection =
-    isActive && activeDirection === "desc" ? "asc" : "desc";
+  /*
+   * Bottle Name may toggle between A–Z and Z–A.
+   * Numeric metric columns always sort descending.
+   */
+  const nextDirection: SortDirection = isBottleName
+    ? isActive && activeDirection === "asc"
+      ? "desc"
+      : "asc"
+    : "desc";
+
+  let indicator = "↕";
+
+  if (isActive) {
+    indicator =
+      isBottleName && activeDirection === "asc"
+        ? "↑"
+        : "↓";
+  }
 
   return (
     <Link
@@ -370,9 +389,7 @@ function BottleViewSortLink({
     >
       <span>{label}</span>
 
-      <span className="text-xs text-stone-500">
-        {isActive ? (activeDirection === "desc" ? "↓" : "↑") : "↕"}
-      </span>
+      <span className="text-xs text-stone-500">{indicator}</span>
     </Link>
   );
 }
@@ -396,15 +413,19 @@ function normalizeSortDirection(
   value: string | undefined,
   sortKey: BottleViewSortKey
 ): SortDirection {
-  if (value === "asc" || value === "desc") {
-    return value;
+  /*
+   * All numeric metric columns are always descending.
+   * Only Bottle Name honors an ascending or descending URL value.
+   */
+  if (sortKey !== "bottle_name") {
+    return "desc";
   }
 
-  if (sortKey === "bottle_name") {
-    return "asc";
+  if (value === "desc") {
+    return "desc";
   }
 
-  return "desc";
+  return "asc";
 }
 
 function sortBottleViewCounts(
@@ -413,9 +434,27 @@ function sortBottleViewCounts(
   direction: SortDirection
 ) {
   const sortedRows = [...rows];
-  const directionMultiplier = direction === "asc" ? 1 : -1;
 
   sortedRows.sort((a, b) => {
+    if (sortKey === "bottle_name") {
+      const nameComparison = getBottleName(a).localeCompare(
+        getBottleName(b),
+        undefined,
+        {
+          numeric: true,
+          sensitivity: "base",
+        }
+      );
+
+      if (nameComparison !== 0) {
+        return direction === "asc"
+          ? nameComparison
+          : nameComparison * -1;
+      }
+
+      return compareStableBottleIdentity(a, b);
+    }
+
     const aLast24 = toNumber(a.bottle_views_last_24_hours);
     const bLast24 = toNumber(b.bottle_views_last_24_hours);
 
@@ -428,68 +467,79 @@ function sortBottleViewCounts(
     let comparisons: number[];
 
     switch (sortKey) {
-      case "last_24":
-        comparisons = [
-          aLast24 - bLast24,
-          aLast7 - bLast7,
-          aTotal - bTotal,
-        ];
-        break;
-
       case "last_7":
         comparisons = [
-          aLast7 - bLast7,
-          aLast24 - bLast24,
-          aTotal - bTotal,
+          bLast7 - aLast7,
+          bLast24 - aLast24,
+          bTotal - aTotal,
         ];
         break;
 
       case "total":
         comparisons = [
-          aTotal - bTotal,
-          aLast24 - bLast24,
-          aLast7 - bLast7,
+          bTotal - aTotal,
+          bLast24 - aLast24,
+          bLast7 - aLast7,
         ];
         break;
 
-      case "bottle_name":
-      default: {
-        const nameComparison = getBottleName(a).localeCompare(
-          getBottleName(b),
-          undefined,
-          {
-            numeric: true,
-            sensitivity: "base",
-          }
-        );
-
-        if (nameComparison !== 0) {
-          return nameComparison * directionMultiplier;
-        }
-
-        return (
-          getBottleName(a).localeCompare(getBottleName(b), undefined, {
-            numeric: true,
-            sensitivity: "variant",
-          }) * directionMultiplier
-        );
-      }
+      case "last_24":
+      default:
+        comparisons = [
+          bLast24 - aLast24,
+          bLast7 - aLast7,
+          bTotal - aTotal,
+        ];
+        break;
     }
 
     for (const comparison of comparisons) {
       if (comparison !== 0) {
-        return comparison * directionMultiplier;
+        return comparison;
       }
     }
 
-    // Final deterministic tie-breaker.
-    return getBottleName(a).localeCompare(getBottleName(b), undefined, {
-      numeric: true,
-      sensitivity: "base",
-    });
+    const bottleNameComparison = getBottleName(a).localeCompare(
+      getBottleName(b),
+      undefined,
+      {
+        numeric: true,
+        sensitivity: "base",
+      }
+    );
+
+    if (bottleNameComparison !== 0) {
+      return bottleNameComparison;
+    }
+
+    return compareStableBottleIdentity(a, b);
   });
 
   return sortedRows;
+}
+
+function compareStableBottleIdentity(
+  a: BottleViewCount,
+  b: BottleViewCount
+) {
+  return getStableBottleIdentity(a).localeCompare(
+    getStableBottleIdentity(b),
+    undefined,
+    {
+      numeric: true,
+      sensitivity: "base",
+    }
+  );
+}
+
+function getStableBottleIdentity(row: BottleViewCount) {
+  return (
+    row.single_barrel_id ??
+    row.bottle_id ??
+    row.bottle_slug ??
+    row.bottle_name ??
+    ""
+  );
 }
 
 function getBottleName(row: BottleViewCount) {
@@ -503,7 +553,7 @@ function toNumber(value: number | string | null) {
 
   const parsedValue = Number(value);
 
-  if (Number.isNaN(parsedValue)) {
+  if (!Number.isFinite(parsedValue)) {
     return 0;
   }
 
