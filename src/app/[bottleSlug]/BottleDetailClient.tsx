@@ -6,6 +6,14 @@ import NewUpdateStar from "@/components/NewUpdateStar";
 import MasterWhiskeyLibrarySpecs from "@/components/MasterWhiskeyLibrarySpecs";
 import { supabase } from "@/lib/supabaseClient";
 
+type ExternalLink = {
+  platform: string;
+  link_type: string;
+  link_label: string;
+  link_url: string;
+  display_order: number;
+};
+
 type BottleDetail = {
   organization_id: string;
   organization_slug: string;
@@ -47,6 +55,8 @@ type BottleDetail = {
   avg_composite_score: number | null;
   most_recent_tasting_date: string | null;
   new_update: boolean | null;
+
+  external_links?: ExternalLink[] | null;
 };
 
 type TastingRow = {
@@ -209,6 +219,19 @@ export default function BottleDetailClient({
     return `Based on ${count} tastings`;
   }, [bottle?.tasting_count, tastings.length]);
 
+  const sortedExternalLinks = useMemo(() => {
+    return [...(bottle?.external_links ?? [])].sort((a, b) => {
+      const displayOrderDifference =
+        (a.display_order ?? 0) - (b.display_order ?? 0);
+
+      if (displayOrderDifference !== 0) {
+        return displayOrderDifference;
+      }
+
+      return a.link_label.localeCompare(b.link_label);
+    });
+  }, [bottle?.external_links]);
+
   if (loading) {
     return (
       <section className="mx-auto max-w-6xl px-4 py-6 md:px-6 md:py-12">
@@ -234,6 +257,7 @@ export default function BottleDetailClient({
       <section className="mx-auto max-w-6xl px-4 py-6 md:px-6 md:py-12">
         <div className="rounded-xl border border-stone-300 bg-white p-8 text-center text-stone-700 shadow-sm">
           Bottle detail was not found.
+
           <div className="mt-4">
             <Link href="/" className="font-semibold text-amber-800 underline">
               Back to Reviews
@@ -302,7 +326,9 @@ export default function BottleDetailClient({
 
       <div className="mt-6 rounded-2xl border border-stone-300 bg-white p-6 shadow-sm">
         <div className="mb-5 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-          <h2 className="text-2xl font-bold text-stone-950">Tasting History</h2>
+          <h2 className="text-2xl font-bold text-stone-950">
+            Tasting History
+          </h2>
 
           <div className="text-sm text-stone-500">
             {tastings.length} tastings • sorted by tasting date desc
@@ -350,6 +376,7 @@ export default function BottleDetailClient({
                       <ScorePill label="Nose" value={tasting.nose_score} />
                       <ScorePill label="Palate" value={tasting.palate_score} />
                       <ScorePill label="Finish" value={tasting.finish_score} />
+
                       <ScorePill
                         label="Final"
                         value={tasting.composite_score}
@@ -369,11 +396,16 @@ export default function BottleDetailClient({
                 </div>
 
                 <div className="grid gap-4 md:grid-cols-3">
-                  <TastingNoteBlock label="Nose" notes={tasting.nose_notes} />
+                  <TastingNoteBlock
+                    label="Nose"
+                    notes={tasting.nose_notes}
+                  />
+
                   <TastingNoteBlock
                     label="Palate"
                     notes={tasting.palate_notes}
                   />
+
                   <TastingNoteBlock
                     label="Finish"
                     notes={tasting.finish_notes}
@@ -385,6 +417,7 @@ export default function BottleDetailClient({
                     <div className="text-sm font-semibold uppercase tracking-wide text-stone-600">
                       Overall Notes
                     </div>
+
                     <p className="mt-2 whitespace-pre-line text-sm leading-7 text-stone-700">
                       {tasting.overall_notes}
                     </p>
@@ -395,6 +428,36 @@ export default function BottleDetailClient({
           </div>
         )}
       </div>
+
+      {sortedExternalLinks.length > 0 && (
+        <div className="mt-6 rounded-2xl border border-stone-300 bg-white p-6 shadow-sm">
+          <h2 className="text-2xl font-bold text-stone-950">
+            Review Links
+          </h2>
+
+          <p className="mt-1 text-sm text-stone-600">
+            Watch or read the full review on the original platform.
+          </p>
+
+          <div className="mt-4 flex flex-col items-start gap-3">
+            {sortedExternalLinks.map((externalLink) => (
+              <a
+                key={`${externalLink.platform}-${externalLink.link_url}`}
+                href={externalLink.link_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex w-full items-center justify-between gap-4 rounded-lg border border-stone-300 bg-stone-50 px-4 py-3 font-semibold text-stone-900 transition hover:bg-stone-100 sm:w-auto"
+              >
+                <span>{externalLink.link_label}</span>
+
+                <span className="text-xs font-semibold uppercase tracking-wide text-stone-500">
+                  {formatPlatformName(externalLink.platform)}
+                </span>
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="mt-6">
         <MasterWhiskeyLibrarySpecs bottle={bottle} />
@@ -423,6 +486,7 @@ function ScorePill({
       <div className="text-[10px] font-semibold uppercase tracking-wide text-stone-500">
         {label}
       </div>
+
       <div
         className={`mt-1 ${
           emphasized ? "text-lg font-black" : "text-base font-bold"
@@ -446,6 +510,7 @@ function TastingNoteBlock({
       <div className="text-sm font-semibold uppercase tracking-wide text-stone-600">
         {label}
       </div>
+
       <p className="mt-2 whitespace-pre-line text-sm leading-7 text-stone-700">
         {notes ?? "—"}
       </p>
@@ -471,10 +536,29 @@ function formatScore(value: number | null) {
 
 function formatMoney(value: number | null) {
   if (value === null || value === undefined) return "—";
+
   return `$${value.toFixed(0)}`;
 }
 
 function formatYesNo(value: boolean | null | undefined) {
   if (value === null || value === undefined) return "—";
+
   return value ? "Yes" : "No";
+}
+
+function formatPlatformName(platform: string) {
+  switch (platform.toUpperCase()) {
+    case "YOUTUBE":
+      return "YouTube";
+    case "INSTAGRAM":
+      return "Instagram";
+    case "TIKTOK":
+      return "TikTok";
+    case "PODCAST":
+      return "Podcast";
+    case "WEBSITE":
+      return "Website";
+    default:
+      return "External";
+  }
 }
