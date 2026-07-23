@@ -82,18 +82,18 @@ type TastingRow = {
 
   created_at: string | null;
   new_update: boolean | null;
-  can_edit: boolean | null;
 };
 
 type BottleDetailClientProps = {
   organizationSlug: string;
   bottleSlug: string;
-  canEditReviews?: boolean;
+  canEditReviews: boolean;
 };
 
 export default function BottleDetailClient({
   organizationSlug,
   bottleSlug,
+  canEditReviews,
 }: BottleDetailClientProps) {
   const [bottle, setBottle] = useState<BottleDetail | null>(null);
   const [tastings, setTastings] = useState<TastingRow[]>([]);
@@ -186,8 +186,7 @@ export default function BottleDetailClient({
           tasted_blind,
           would_rebuy,
           created_at,
-          new_update,
-          can_edit
+          new_update
         `
         )
         .eq("organization_id", matchedBottle.organization_id)
@@ -436,7 +435,7 @@ export default function BottleDetailClient({
                       />
                     </div>
 
-                    {Boolean(tasting.can_edit) && (
+                    {canEditReviews && (
                       <Link
                         href={`/dashboard/tastings/${tasting.tasting_id}/edit`}
                         className="rounded border border-stone-300 bg-white px-3 py-1 text-sm font-semibold text-stone-800 hover:bg-stone-100"
