@@ -5,6 +5,7 @@ import Link from "next/link";
 import NewUpdateStar from "@/components/NewUpdateStar";
 import MasterWhiskeyLibrarySpecs from "@/components/MasterWhiskeyLibrarySpecs";
 import { supabase } from "@/lib/supabaseClient";
+import { collectBottleViewAnalytics } from "@/lib/bottleViewAnalytics";
 
 type ExternalLink = {
   platform: string;
@@ -220,6 +221,8 @@ export default function BottleDetailClient({
 
     async function logBottleView() {
       try {
+        const analytics = collectBottleViewAnalytics();
+
         const response = await fetch("/api/bottle-view-log", {
           method: "POST",
           headers: {
@@ -231,14 +234,25 @@ export default function BottleDetailClient({
             bottleId: currentBottle.bottle_id ?? null,
             bottleSlug: currentBottle.bottle_slug,
             bottleName: currentBottle.bottle_display_name ?? null,
-            routePath: window.location.pathname,
+
+            routePath:
+              window.location.pathname +
+              window.location.search,
+
             siteHost: window.location.host,
+
+            ...analytics,
           }),
         });
 
         if (!response.ok) {
           const result = await response.json();
-          console.error("Bottle view log failed", response.status, result);
+
+          console.error(
+            "Bottle view log failed",
+            response.status,
+            result
+          );
         }
       } catch (error) {
         console.error("Failed to log bottle view", error);
