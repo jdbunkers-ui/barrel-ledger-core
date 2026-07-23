@@ -1,102 +1,77 @@
+import { notFound } from "next/navigation";
 import CustomerHeader from "@/components/CustomerHeader";
 import Navigation from "@/components/Navigation";
 import { requireEditor } from "@/lib/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getSiteContextByHost } from "@/lib/getSiteContext";
 import { headers } from "next/headers";
-import {
-  hideTastingAction,
-  updateTastingAction,
-} from "../../actions";
+import EditTastingForm from "./EditTastingForm";
+import { hideTastingAction, updateTastingAction } from "./actions";
 
-type PageProps = {
+type EditTastingPageProps = {
   params: Promise<{
     tasting_id: string;
   }>;
+  searchParams?: Promise<{
+    saved?: string;
+  }>;
+};
+
+type EditableTasting = {
+  tasting_id: string;
+  organization_id: string;
+  single_barrel_id: string;
+  score_method: "OVERALL" | "SENSORY";
+  entered_overall_score: number | null;
+  nose_score: number | null;
+  palate_score: number | null;
+  finish_score: number | null;
+  composite_score: number | null;
+  nose_notes: string | null;
+  palate_notes: string | null;
+  finish_notes: string | null;
+  overall_notes: string | null;
+  guided_sensory_ind: boolean;
+  youtube_url: string | null;
+  instagram_url: string | null;
 };
 
 export default async function EditTastingPage({
   params,
-}: PageProps) {
+  searchParams,
+}: EditTastingPageProps) {
   await requireEditor();
+  const supabase = await createSupabaseServerClient();
 
   const { tasting_id } = await params;
-  const supabase = await createSupabaseServerClient();
+  const resolvedSearchParams = searchParams ? await searchParams : {};
 
   const headersList = await headers();
   const host = headersList.get("host") ?? "";
-  const referer =
-    headersList.get("referer") ?? "/dashboard";
-
   const site = await getSiteContextByHost(host);
 
-  const { data: tasting, error } = await supabase
+  const { data: tastingRows, error: tastingError } = await supabase
     .schema("barrel_ledger_public")
-    .from("v_reviews")
-    .select(
-      `
-        tasting_id,
-        tasting_date,
-        nose_score,
-        palate_score,
-        finish_score,
-        composite_score,
-        nose_notes,
-        palate_notes,
-        finish_notes,
-        overall_notes
-      `
-    )
-    .eq("tasting_id", tasting_id)
-    .maybeSingle();
+    .rpc("f_get_editable_tasting_review", {
+    p_tasting_id: tasting_id,
+    });
 
-  if (error) {
-    return (
-      <main className="min-h-screen bg-stone-100">
-        {site && (
-          <CustomerHeader
-            siteTitle={site.site_title}
-            siteSubtitle={site.site_subtitle}
-            logoUrl={site.logo_url}
-            bannerUrl={site.banner_url}
-            primaryColor={site.primary_color}
-          />
-        )}
-
-        <Navigation />
-
-        <section className="mx-auto max-w-3xl px-6 py-10">
-          <div className="rounded border border-red-300 bg-red-50 p-6 text-red-700">
-            {error.message}
-          </div>
-        </section>
-      </main>
-    );
+  if (tastingError) {
+    notFound();
   }
+
+  const tasting = ((tastingRows ?? []) as EditableTasting[])[0] ?? null;
 
   if (!tasting) {
-    return (
-      <main className="min-h-screen bg-stone-100">
-        {site && (
-          <CustomerHeader
-            siteTitle={site.site_title}
-            siteSubtitle={site.site_subtitle}
-            logoUrl={site.logo_url}
-            bannerUrl={site.banner_url}
-            primaryColor={site.primary_color}
-          />
-        )}
-
-        <Navigation />
-
-        <section className="mx-auto max-w-3xl px-6 py-10">
-          <div className="rounded border border-stone-300 bg-white p-6">
-            Tasting not found.
-          </div>
-        </section>
-      </main>
-    );
+    notFound();
   }
+
+  const { data: review } = await supabase
+    .schema("barrel_ledger_public")
+    .from("v_reviews_v2")
+    .select("bottle_display_name")
+    .eq("tasting_id", tasting_id)
+    .maybeSingle();
 
   return (
     <main className="min-h-screen bg-stone-100">
@@ -112,169 +87,29 @@ export default async function EditTastingPage({
 
       <Navigation />
 
-      <section className="mx-auto max-w-3xl px-6 py-10">
-        <h1 className="text-4xl font-bold">
+      <section className="mx-auto max-w-4xl px-6 py-10">
+        <h1 className="text-4xl font-bold text-stone-950">
           Edit Review
         </h1>
 
         <p className="mt-2 text-stone-700">
-          Tasting Date:{" "}
-          {tasting.tasting_date ?? "—"}
+          {review?.bottle_display_name ?? "Tasting review"}
         </p>
 
-        <section className="mt-6 rounded border border-stone-300 bg-stone-50 p-6">
-          <h2 className="text-xl font-bold text-stone-950">
-            Tasting Scores
-          </h2>
-
-          <p className="mt-1 text-sm text-stone-600">
-            Scores are preserved from the original tasting
-            submission and cannot be edited here.
-          </p>
-
-          <div className="mt-4 grid gap-4 md:grid-cols-4">
-            <ScoreCard
-              label="Nose"
-              value={tasting.nose_score}
-            />
-
-            <ScoreCard
-              label="Palate"
-              value={tasting.palate_score}
-            />
-
-            <ScoreCard
-              label="Finish"
-              value={tasting.finish_score}
-            />
-
-            <ScoreCard
-              label="Overall"
-              value={tasting.composite_score}
-            />
+        {resolvedSearchParams.saved === "1" && (
+          <div className="mt-5 rounded-lg border border-green-300 bg-green-50 p-4 font-semibold text-green-800">
+            Review changes saved.
           </div>
-        </section>
+        )}
 
-        <form
-          action={updateTastingAction}
-          className="mt-6 rounded border border-stone-300 bg-white p-6"
-        >
-          <input
-            type="hidden"
-            name="tasting_id"
-            value={tasting.tasting_id}
+        <div className="mt-6">
+          <EditTastingForm
+            tasting={tasting}
+            updateAction={updateTastingAction}
+            hideAction={hideTastingAction}
           />
-
-          <input
-            type="hidden"
-            name="return_to"
-            value={referer}
-          />
-
-          <p className="mb-5 text-sm leading-6 text-stone-600">
-            Update the written review below. Original structured
-            sensory selections remain unchanged.
-          </p>
-
-          <label className="mb-2 block font-semibold">
-            Nose Notes
-          </label>
-
-          <textarea
-            name="nose_notes"
-            defaultValue={tasting.nose_notes ?? ""}
-            className="mb-4 min-h-24 w-full rounded border p-2"
-          />
-
-          <label className="mb-2 block font-semibold">
-            Palate Notes
-          </label>
-
-          <textarea
-            name="palate_notes"
-            defaultValue={tasting.palate_notes ?? ""}
-            className="mb-4 min-h-24 w-full rounded border p-2"
-          />
-
-          <label className="mb-2 block font-semibold">
-            Finish Notes
-          </label>
-
-          <textarea
-            name="finish_notes"
-            defaultValue={tasting.finish_notes ?? ""}
-            className="mb-4 min-h-24 w-full rounded border p-2"
-          />
-
-          <label className="mb-2 block font-semibold">
-            Overall Notes
-          </label>
-
-          <textarea
-            name="overall_notes"
-            defaultValue={tasting.overall_notes ?? ""}
-            className="mb-6 min-h-24 w-full rounded border p-2"
-          />
-
-          <button
-            type="submit"
-            className="rounded bg-stone-900 px-5 py-2 font-semibold text-white"
-          >
-            Save Changes
-          </button>
-        </form>
-
-        <form
-          action={hideTastingAction}
-          className="mt-4"
-        >
-          <input
-            type="hidden"
-            name="tasting_id"
-            value={tasting.tasting_id}
-          />
-
-          <input
-            type="hidden"
-            name="return_to"
-            value={referer}
-          />
-
-          <button
-            type="submit"
-            className="rounded border border-red-700 px-5 py-2 font-semibold text-red-700"
-          >
-            Hide This Review
-          </button>
-
-          <p className="mt-2 text-sm text-stone-600">
-            This does not delete the database row. It sets
-            fact_tastings.is_deleted to true.
-          </p>
-        </form>
+        </div>
       </section>
     </main>
-  );
-}
-
-function ScoreCard({
-  label,
-  value,
-}: {
-  label: string;
-  value: number | null;
-}) {
-  return (
-    <div className="rounded border border-stone-200 bg-white p-4">
-      <div className="text-sm font-semibold text-stone-600">
-        {label}
-      </div>
-
-      <div className="mt-1 text-2xl font-bold text-stone-950">
-        {value === null || value === undefined
-          ? "—"
-          : Number(value).toFixed(1)}
-      </div>
-    </div>
   );
 }

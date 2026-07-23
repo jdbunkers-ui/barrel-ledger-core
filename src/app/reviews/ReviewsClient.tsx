@@ -15,6 +15,9 @@ type ReviewSummary = {
   proof: number | null;
   new_update: boolean | null;
   search_text: string | null;
+  is_provisional: boolean | null;
+  pending_curation_ind: boolean | null;
+  curation_status: string | null;
 };
 
 type ReviewsClientProps = {
@@ -50,7 +53,7 @@ export default function ReviewsClient({ organizationSlug }: ReviewsClientProps) 
 
       const { data, error } = await supabase
         .schema("barrel_ledger_public")
-        .from("v_review_summary")
+        .from("v_review_summary_v2")
         .select(
           `
           single_barrel_id,
@@ -61,7 +64,10 @@ export default function ReviewsClient({ organizationSlug }: ReviewsClientProps) 
           most_recent_created_at,
           proof,
           new_update,
-          search_text
+          search_text,
+          is_provisional,
+          pending_curation_ind,
+          curation_status
         `
         )
         .eq("organization_slug", organizationSlug)
@@ -250,6 +256,12 @@ export default function ReviewsClient({ organizationSlug }: ReviewsClientProps) 
                         review.bottle_display_name ?? "Unnamed Bottle"
                       )}
                     </h2>
+
+                    {review.pending_curation_ind && (
+                      <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-900">
+                        Pending Curation
+                      </span>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-2 gap-3 text-sm">
@@ -372,13 +384,21 @@ export default function ReviewsClient({ organizationSlug }: ReviewsClientProps) 
                       </td>
 
                       <td className="px-4 py-3 text-left font-semibold text-stone-900">
-                        {href ? (
-                          <Link href={href} className="hover:underline">
-                            {review.bottle_display_name ?? "Unnamed Bottle"}
-                          </Link>
-                        ) : (
-                          review.bottle_display_name ?? "Unnamed Bottle"
-                        )}
+                        <div className="flex flex-wrap items-center gap-2">
+                          {href ? (
+                            <Link href={href} className="hover:underline">
+                              {review.bottle_display_name ?? "Unnamed Bottle"}
+                            </Link>
+                          ) : (
+                            review.bottle_display_name ?? "Unnamed Bottle"
+                          )}
+
+                          {review.pending_curation_ind && (
+                            <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-900">
+                              Pending Curation
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       <td className="px-4 py-3 text-center text-stone-800">

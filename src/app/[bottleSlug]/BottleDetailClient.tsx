@@ -57,6 +57,10 @@ type BottleDetail = {
   new_update: boolean | null;
 
   external_links?: ExternalLink[] | null;
+
+  is_provisional?: boolean | null;
+  pending_curation_ind?: boolean | null;
+  curation_status?: string | null;
 };
 
 type TastingRow = {
@@ -78,18 +82,18 @@ type TastingRow = {
 
   created_at: string | null;
   new_update: boolean | null;
+  can_edit: boolean | null;
 };
 
 type BottleDetailClientProps = {
   organizationSlug: string;
   bottleSlug: string;
-  canEditReviews: boolean;
+  canEditReviews?: boolean;
 };
 
 export default function BottleDetailClient({
   organizationSlug,
   bottleSlug,
-  canEditReviews,
 }: BottleDetailClientProps) {
   const [bottle, setBottle] = useState<BottleDetail | null>(null);
   const [tastings, setTastings] = useState<TastingRow[]>([]);
@@ -102,12 +106,47 @@ export default function BottleDetailClient({
       setLoading(true);
       setErrorMessage(null);
 
+      const { data: routeRows, error: routeError } = await supabase
+        .schema("barrel_ledger_public")
+        .from("v_bottle_route_resolution")
+        .select("canonical_slug, is_alias")
+        .eq("organization_slug", organizationSlug)
+        .eq("requested_slug", bottleSlug)
+        .limit(1);
+
+      if (routeError) {
+        setErrorMessage(routeError.message);
+        setBottle(null);
+        setTastings([]);
+        setLoading(false);
+        return;
+      }
+
+      const routeResolution = (routeRows ?? [])[0] as
+        | {
+            canonical_slug: string | null;
+            is_alias: boolean | null;
+          }
+        | undefined;
+
+      const resolvedBottleSlug =
+        routeResolution?.canonical_slug ?? bottleSlug;
+
+      if (
+        routeResolution?.is_alias &&
+        routeResolution.canonical_slug &&
+        routeResolution.canonical_slug !== bottleSlug
+      ) {
+        window.location.replace(`/${routeResolution.canonical_slug}`);
+        return;
+      }
+
       const { data: bottleRows, error: bottleError } = await supabase
         .schema("barrel_ledger_public")
-        .from("v_bottle_detail")
+        .from("v_bottle_detail_v2")
         .select("*")
         .eq("organization_slug", organizationSlug)
-        .eq("bottle_slug", bottleSlug)
+        .eq("bottle_slug", resolvedBottleSlug)
         .limit(1);
 
       if (bottleError) {
@@ -131,7 +170,7 @@ export default function BottleDetailClient({
 
       const { data: tastingRows, error: tastingError } = await supabase
         .schema("barrel_ledger_public")
-        .from("v_reviews")
+        .from("v_reviews_v2")
         .select(
           `
           tasting_id,
@@ -147,7 +186,8 @@ export default function BottleDetailClient({
           tasted_blind,
           would_rebuy,
           created_at,
-          new_update
+          new_update,
+          can_edit
         `
         )
         .eq("organization_id", matchedBottle.organization_id)
@@ -324,6 +364,18 @@ export default function BottleDetailClient({
         </div>
       </div>
 
+      {bottle.pending_curation_ind && (
+        <div className="mt-6 rounded-2xl border border-amber-300 bg-amber-50 p-6 shadow-sm">
+          <h2 className="text-xl font-bold text-amber-950">
+            Bottle Details Pending Curation
+          </h2>
+          <p className="mt-2 text-sm leading-6 text-amber-900">
+            This review is public now. The bottle is still being matched and
+            curated for the Master Whiskey Library.
+          </p>
+        </div>
+      )}
+
       <div className="mt-6 rounded-2xl border border-stone-300 bg-white p-6 shadow-sm">
         <div className="mb-5 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
           <h2 className="text-2xl font-bold text-stone-950">
@@ -384,7 +436,7 @@ export default function BottleDetailClient({
                       />
                     </div>
 
-                    {canEditReviews && (
+                    {Boolean(tasting.can_edit) && (
                       <Link
                         href={`/dashboard/tastings/${tasting.tasting_id}/edit`}
                         className="rounded border border-stone-300 bg-white px-3 py-1 text-sm font-semibold text-stone-800 hover:bg-stone-100"
@@ -459,9 +511,11 @@ export default function BottleDetailClient({
         </div>
       )}
 
-      <div className="mt-6">
-        <MasterWhiskeyLibrarySpecs bottle={bottle} />
-      </div>
+      {!bottle.pending_curation_ind && (
+        <div className="mt-6">
+          <MasterWhiskeyLibrarySpecs bottle={bottle} />
+        </div>
+      )}
     </section>
   );
 }

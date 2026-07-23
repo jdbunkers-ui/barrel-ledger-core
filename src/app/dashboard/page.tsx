@@ -43,6 +43,13 @@ type BarrelLedgerUpdate = {
   new_update: boolean;
 };
 
+type PendingBottleSubmission = {
+  master_data_submission_id: string;
+  submitted_display_name: string;
+  submission_status: string;
+  created_at: string;
+};
+
 export default async function DashboardPage({
   searchParams,
 }: DashboardPageProps) {
@@ -64,17 +71,15 @@ export default async function DashboardPage({
   );
 
   const [
-    { data: submissions },
+    { data: pendingSubmissionsRaw },
     { data: bottleCountsRaw },
     { data: updatesRaw },
   ] = await Promise.all([
     supabase
       .schema("barrel_ledger_public")
-      .from("v_admin_bottle_submission_status")
-      .select("*")
-      .eq("organization_id", member.organization_id)
-      .order("create_ts", { ascending: false })
-      .limit(25),
+      .rpc("f_get_pending_bottle_submissions", {
+        p_organization_id: member.organization_id,
+      }),
 
     supabase
       .schema("barrel_ledger_public")
@@ -99,6 +104,8 @@ export default async function DashboardPage({
   );
 
   const updates = (updatesRaw ?? []) as BarrelLedgerUpdate[];
+  const pendingSubmissions =
+    (pendingSubmissionsRaw ?? []) as PendingBottleSubmission[];
 
   return (
     <main className="min-h-screen bg-stone-100">
@@ -125,12 +132,14 @@ export default async function DashboardPage({
             Add a Tasting
           </Link>
 
-          <Link
-            href="/dashboard/bottle-submissions/new"
-            className="rounded border border-stone-300 bg-white p-6 text-xl font-semibold hover:shadow"
-          >
-            Submit a Bottle to the Master Whiskey Library
-          </Link>
+          <div className="rounded border border-stone-300 bg-stone-50 p-6">
+            <div className="text-xl font-semibold text-stone-700">
+              Add a Barrel Picker Experience
+            </div>
+            <div className="mt-2 text-sm font-semibold uppercase tracking-wide text-amber-800">
+              Coming Soon
+            </div>
+          </div>
 
           <Link
             href="/dashboard/change-password"
@@ -191,49 +200,56 @@ export default async function DashboardPage({
         </section>
 
         <section className="mb-8 rounded border border-stone-300 bg-white p-6">
-          <h2 className="mb-4 text-2xl font-bold">Bottle Submissions</h2>
+          <h2 className="mb-2 text-2xl font-bold">
+            Bottles Pending Curation
+          </h2>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="border-b">
-                  <th className="py-2">Submitted</th>
-                  <th className="py-2">Bottle</th>
-                  <th className="py-2">Type</th>
-                  <th className="py-2">Status</th>
-                </tr>
-              </thead>
+          <p className="mb-4 text-sm leading-6 text-stone-600">
+            These bottles were added through the tasting workflow and remain
+            available to your organization while the Master Whiskey Library
+            details are reviewed.
+          </p>
 
-              <tbody>
-                {(submissions ?? []).map((submission) => (
-                  <tr key={submission.submission_id} className="border-b">
-                    <td className="py-2">
-                      {new Date(submission.create_ts).toLocaleDateString()}
-                    </td>
-
-                    <td className="py-2">
-                      {[
-                        submission.distillery_name,
-                        submission.brand_name,
-                        submission.expression_name,
-                        submission.pick_name,
-                      ]
-                        .filter(Boolean)
-                        .join(" - ") || "Bottle submission"}
-                    </td>
-
-                    <td className="py-2">
-                      {submission.submitted_bottle_type ?? "Standard"}
-                    </td>
-
-                    <td className="py-2 font-semibold">
-                      {submission.submission_status}
-                    </td>
+          {pendingSubmissions.length === 0 ? (
+            <p className="text-sm text-stone-500">
+              No bottles are currently pending curation.
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead>
+                  <tr className="border-b">
+                    <th className="py-2">Submitted</th>
+                    <th className="py-2">Bottle</th>
+                    <th className="py-2">Status</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+
+                <tbody>
+                  {pendingSubmissions.map((submission) => (
+                    <tr
+                      key={submission.master_data_submission_id}
+                      className="border-b"
+                    >
+                      <td className="py-2">
+                        {new Date(submission.created_at).toLocaleDateString()}
+                      </td>
+                      <td className="py-2 font-semibold">
+                        {submission.submitted_display_name}
+                      </td>
+                      <td className="py-2">
+                        <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-900">
+                          {submission.submission_status === "needs_more_info"
+                            ? "Needs More Information"
+                            : "Pending"}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </section>
 
         <section className="rounded border border-stone-300 bg-white p-6">

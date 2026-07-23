@@ -4,8 +4,8 @@ import { requireEditor } from "@/lib/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getSiteContextByHost } from "@/lib/getSiteContext";
 import { headers } from "next/headers";
-import { addTastingAction } from "../actions";
 import AddTastingForm from "./AddTastingForm";
+import { addTastingAction } from "./actions";
 
 type ProducerOption = {
   distillery_id: string;
@@ -25,19 +25,21 @@ type PickerOption = {
 
 type SingleBarrelOption = {
   single_barrel_id: string;
-  bottle_id?: string | null;
-  distillery_id?: string | null;
-  bottle_display_name?: string | null;
-  producer_name?: string | null;
-  distillery_name?: string | null;
-  barrel_picker_id?: string | null;
-  barrel_picker_name?: string | null;
-  picker_name?: string | null;
-  pick_name?: string | null;
-  batch_code?: string | null;
-  bottling_year?: number | null;
-  proof?: number | null;
-  age_years?: number | null;
+  bottle_id: string | null;
+  distillery_id: string | null;
+  bottle_display_name: string | null;
+  producer_name: string | null;
+  distillery_name: string | null;
+  barrel_picker_id: string | null;
+  barrel_picker_name: string | null;
+  picker_name: string | null;
+  pick_name: string | null;
+  batch_code: string | null;
+  bottling_year: number | null;
+  proof: number | null;
+  age_years: number | null;
+  is_provisional: boolean | null;
+  curation_status: string | null;
 };
 
 type SensoryNoteOption = {
@@ -55,89 +57,62 @@ type SensoryNoteOption = {
 };
 
 export default async function AddTastingPage() {
-  await requireEditor();
-
+  const member = await requireEditor();
   const supabase = await createSupabaseServerClient();
 
   const headersList = await headers();
   const host = headersList.get("host") ?? "";
   const site = await getSiteContextByHost(host);
 
-  const { data: producers, error: producersError } = await supabase
-    .schema("barrel_ledger_public")
-    .from("v_admin_distillery_options")
-    .select("distillery_id, distillery_name")
-    .order("distillery_name", { ascending: true });
-
-  if (producersError) {
-    throw new Error(
-      `Unable to load producers: ${producersError.message}`
-    );
-  }
-
-  const { data: bottles, error: bottlesError } = await supabase
-    .schema("barrel_ledger_public")
-    .from("v_admin_bottle_options")
-    .select("bottle_id, bottle_display_name, distillery_id")
-    .order("bottle_display_name", { ascending: true });
-
-  if (bottlesError) {
-    throw new Error(
-      `Unable to load bottles: ${bottlesError.message}`
-    );
-  }
-
-  const { data: pickers, error: pickersError } = await supabase
-    .schema("barrel_ledger_public")
-    .from("v_admin_barrel_picker_options")
-    .select("barrel_picker_id, barrel_picker_name")
-    .order("barrel_picker_name", { ascending: true });
-
-  if (pickersError) {
-    throw new Error(
-      `Unable to load barrel pickers: ${pickersError.message}`
-    );
-  }
-
-  const { data: singleBarrels, error: singleBarrelsError } =
-    await supabase
+  const [
+    { data: producers, error: producerError },
+    { data: bottles, error: bottleError },
+    { data: pickers, error: pickerError },
+    { data: sensoryNotes, error: sensoryError },
+    { data: singleBarrels, error: singleBarrelError },
+  ] = await Promise.all([
+    supabase
       .schema("barrel_ledger_public")
-      .from("v_admin_single_barrel_options")
-      .select("*")
-      .order("bottle_display_name", { ascending: true });
+      .from("v_admin_distillery_options")
+      .select("distillery_id, distillery_name")
+      .order("distillery_name", { ascending: true }),
 
-  if (singleBarrelsError) {
-    throw new Error(
-      `Unable to load bottle records: ${singleBarrelsError.message}`
-    );
-  }
+    supabase
+      .schema("barrel_ledger_public")
+      .from("v_admin_bottle_options")
+      .select("bottle_id, bottle_display_name, distillery_id")
+      .order("bottle_display_name", { ascending: true }),
 
-  const { data: sensoryNotes, error: sensoryNotesError } =
-    await supabase
+    supabase
+      .schema("barrel_ledger_public")
+      .from("v_admin_barrel_picker_options")
+      .select("barrel_picker_id, barrel_picker_name")
+      .order("barrel_picker_name", { ascending: true }),
+
+    supabase
       .schema("barrel_ledger_public")
       .from("v_sensory_note_selector")
-      .select(
-        `
-          sensory_stage,
-          sensory_category_id,
-          category_code,
-          category_name,
-          category_description,
-          category_display_order,
-          sensory_note_id,
-          sensory_note_code,
-          sensory_note_name,
-          sensory_note_description,
-          note_display_order
-        `
-      )
+      .select("*")
+      .order("sensory_stage", { ascending: true })
       .order("category_display_order", { ascending: true })
-      .order("note_display_order", { ascending: true });
+      .order("note_display_order", { ascending: true }),
 
-  if (sensoryNotesError) {
-    throw new Error(
-      `Unable to load sensory notes: ${sensoryNotesError.message}`
-    );
+    supabase
+      .schema("barrel_ledger_public")
+      .rpc("f_get_tasting_bottle_options", {
+        p_organization_id: member.organization_id,
+      }),
+  ]);
+
+  const firstError =
+    producerError ??
+    bottleError ??
+    pickerError ??
+    sensoryError ??
+    singleBarrelError;
+
+  if (firstError) {
+    throw new Error(firstError.message);
   }
 
   return (
@@ -155,14 +130,14 @@ export default async function AddTastingPage() {
       <Navigation />
 
       <section className="mx-auto max-w-5xl px-6 py-10">
-        <h1 className="mb-2 text-4xl font-bold text-stone-950">
+        <h1 className="text-4xl font-bold text-stone-950">
           Add a Tasting
         </h1>
 
-        <p className="mb-6 text-stone-700">
-          Search and select an approved bottle from the Master Whiskey
-          Library, then add scores and tasting notes. Pending bottle
-          submissions cannot be reviewed until approved.
+        <p className="mt-2 mb-6 max-w-3xl leading-7 text-stone-700">
+          Choose a bottle, capture your tasting notes using either the
+          Organic Narrative or Guided Sensory workflow, and publish the
+          review to your BarrelLedger.
         </p>
 
         <AddTastingForm
@@ -170,12 +145,8 @@ export default async function AddTastingPage() {
           producers={(producers ?? []) as ProducerOption[]}
           bottles={(bottles ?? []) as BottleOption[]}
           pickers={(pickers ?? []) as PickerOption[]}
-          singleBarrels={
-            (singleBarrels ?? []) as SingleBarrelOption[]
-          }
-          sensoryNotes={
-            (sensoryNotes ?? []) as SensoryNoteOption[]
-          }
+          singleBarrels={(singleBarrels ?? []) as SingleBarrelOption[]}
+          sensoryNotes={(sensoryNotes ?? []) as SensoryNoteOption[]}
         />
       </section>
     </main>

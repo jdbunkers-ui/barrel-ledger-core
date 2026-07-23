@@ -1,18 +1,10 @@
 "use client";
 
-import {
-  useMemo,
-  useState,
-} from "react";
+import { useMemo, useState } from "react";
 
-type SensoryStage =
-  | "NOSE"
-  | "PALATE"
-  | "FINISH";
-
-type ScoreMethod =
-  | "OVERALL"
-  | "SENSORY";
+type SensoryStage = "NOSE" | "PALATE" | "FINISH";
+type ScoreMethod = "OVERALL" | "SENSORY";
+type BottleEntryMode = "LIBRARY" | "PENDING" | "NEW";
 
 type ProducerOption = {
   distillery_id: string;
@@ -45,6 +37,8 @@ type SingleBarrelOption = {
   bottling_year?: number | null;
   proof?: number | null;
   age_years?: number | null;
+  is_provisional?: boolean | null;
+  curation_status?: string | null;
 };
 
 type SensoryNoteOption = {
@@ -67,15 +61,10 @@ type AddTastingFormProps = {
   singleBarrels: SingleBarrelOption[];
   pickers: PickerOption[];
   sensoryNotes: SensoryNoteOption[];
-  action: (
-    formData: FormData
-  ) => void | Promise<void>;
+  action: (formData: FormData) => void | Promise<void>;
 };
 
-type SelectedSensoryNotes = Record<
-  SensoryStage,
-  string[]
->;
+type SelectedSensoryNotes = Record<SensoryStage, string[]>;
 
 const EMPTY_SELECTIONS: SelectedSensoryNotes = {
   NOSE: [],
@@ -91,47 +80,27 @@ export default function AddTastingForm({
   sensoryNotes,
   action,
 }: AddTastingFormProps) {
-  const [
-    selectedProducerId,
-    setSelectedProducerId,
-  ] = useState("");
+  const [bottleEntryMode, setBottleEntryMode] =
+    useState<BottleEntryMode>("LIBRARY");
 
-  const [
-    selectedBottleId,
-    setSelectedBottleId,
-  ] = useState("");
+  const [useGuidedSensoryNotes, setUseGuidedSensoryNotes] =
+    useState(false);
 
-  const [
-    selectedSingleBarrelFilter,
-    setSelectedSingleBarrelFilter,
-  ] = useState("");
+  const [selectedProducerId, setSelectedProducerId] = useState("");
+  const [selectedBottleId, setSelectedBottleId] = useState("");
+  const [selectedSingleBarrelFilter, setSelectedSingleBarrelFilter] =
+    useState("");
+  const [selectedPickerId, setSelectedPickerId] = useState("");
+  const [selectedReviewTargetId, setSelectedReviewTargetId] =
+    useState("");
 
-  const [
-    selectedPickerId,
-    setSelectedPickerId,
-  ] = useState("");
+  const [scoreMethod, setScoreMethod] =
+    useState<ScoreMethod>("SENSORY");
 
-  const [
-    selectedReviewTargetId,
-    setSelectedReviewTargetId,
-  ] = useState("");
+  const [selectedSensoryNotes, setSelectedSensoryNotes] =
+    useState<SelectedSensoryNotes>(EMPTY_SELECTIONS);
 
-  const [
-    scoreMethod,
-    setScoreMethod,
-  ] = useState<ScoreMethod>("SENSORY");
-
-  const [
-    selectedSensoryNotes,
-    setSelectedSensoryNotes,
-  ] = useState<SelectedSensoryNotes>(
-    EMPTY_SELECTIONS
-  );
-
-  const [
-    sensorySearch,
-    setSensorySearch,
-  ] = useState<
+  const [sensorySearch, setSensorySearch] = useState<
     Record<SensoryStage, string>
   >({
     NOSE: "",
@@ -139,98 +108,86 @@ export default function AddTastingForm({
     FINISH: "",
   });
 
+  const curatedSingleBarrels = useMemo(
+    () => singleBarrels.filter((row) => !row.is_provisional),
+    [singleBarrels]
+  );
+
+  const pendingSingleBarrels = useMemo(
+    () => singleBarrels.filter((row) => Boolean(row.is_provisional)),
+    [singleBarrels]
+  );
+
   const filteredBottles = useMemo(() => {
     if (!selectedProducerId) return [];
 
     return bottles.filter(
       (bottle) =>
-        String(
-          bottle.distillery_id ?? ""
-        ) === selectedProducerId
+        String(bottle.distillery_id ?? "") === selectedProducerId
     );
-  }, [
-    bottles,
-    selectedProducerId,
-  ]);
+  }, [bottles, selectedProducerId]);
 
-  const bottleFilteredTargets =
-    useMemo(() => {
-      if (!selectedBottleId) return [];
+  const bottleFilteredTargets = useMemo(() => {
+    if (!selectedBottleId) return [];
 
-      return singleBarrels.filter(
-        (row) =>
-          Boolean(row.bottle_id) &&
-          String(row.bottle_id) ===
-            selectedBottleId
-      );
-    }, [
-      singleBarrels,
-      selectedBottleId,
-    ]);
+    return curatedSingleBarrels.filter(
+      (row) =>
+        Boolean(row.bottle_id) &&
+        String(row.bottle_id) === selectedBottleId
+    );
+  }, [curatedSingleBarrels, selectedBottleId]);
 
-  const availableSingleBarrelFilters =
-    useMemo(() => {
-      const seen = new Map<
-        string,
-        string
-      >();
+  const availableSingleBarrelFilters = useMemo(() => {
+    const seen = new Map<string, string>();
 
-      bottleFilteredTargets.forEach(
-        (row) => {
-          const label =
-            formatSingleBarrelLabel(row);
+    bottleFilteredTargets.forEach((row) => {
+      if (!seen.has(row.single_barrel_id)) {
+        seen.set(row.single_barrel_id, formatSingleBarrelLabel(row));
+      }
+    });
 
-          if (
-            !seen.has(
-              row.single_barrel_id
-            )
-          ) {
-            seen.set(
-              row.single_barrel_id,
-              label
-            );
-          }
-        }
-      );
+    return Array.from(seen.entries()).map(([id, label]) => ({
+      id,
+      label,
+    }));
+  }, [bottleFilteredTargets]);
 
-      return Array.from(
-        seen.entries()
-      ).map(([id, label]) => ({
-        id,
-        label,
-      }));
-    }, [bottleFilteredTargets]);
+  const filteredReviewTargets = useMemo(
+    () =>
+      bottleFilteredTargets.filter((row) => {
+        const matchesSingleBarrel =
+          !selectedSingleBarrelFilter ||
+          row.single_barrel_id === selectedSingleBarrelFilter;
 
-  const filteredReviewTargets =
-    useMemo(() => {
-      return bottleFilteredTargets.filter(
-        (row) => {
-          const matchesSingleBarrel =
-            !selectedSingleBarrelFilter ||
-            row.single_barrel_id ===
-              selectedSingleBarrelFilter;
+        const matchesPicker =
+          !selectedPickerId ||
+          String(row.barrel_picker_id ?? "") === selectedPickerId;
 
-          const matchesPicker =
-            !selectedPickerId ||
-            String(
-              row.barrel_picker_id ?? ""
-            ) === selectedPickerId;
-
-          return (
-            matchesSingleBarrel &&
-            matchesPicker
-          );
-        }
-      );
-    }, [
+        return matchesSingleBarrel && matchesPicker;
+      }),
+    [
       bottleFilteredTargets,
       selectedSingleBarrelFilter,
       selectedPickerId,
-    ]);
+    ]
+  );
 
-  function handleProducerChange(
-    value: string
-  ) {
+  const canSubmit =
+    bottleEntryMode === "NEW" || Boolean(selectedReviewTargetId);
+
+  function setMode(mode: BottleEntryMode) {
+    setBottleEntryMode(mode);
+    setSelectedReviewTargetId("");
+
+    if (mode !== "LIBRARY") {
+      setSelectedProducerId("");
+      setSelectedBottleId("");
+      setSelectedSingleBarrelFilter("");
+      setSelectedPickerId("");
+    }
+  }
+
+  function handleProducerChange(value: string) {
     setSelectedProducerId(value);
     setSelectedBottleId("");
     setSelectedSingleBarrelFilter("");
@@ -238,26 +195,10 @@ export default function AddTastingForm({
     setSelectedReviewTargetId("");
   }
 
-  function handleBottleChange(
-    value: string
-  ) {
+  function handleBottleChange(value: string) {
     setSelectedBottleId(value);
     setSelectedSingleBarrelFilter("");
     setSelectedPickerId("");
-    setSelectedReviewTargetId("");
-  }
-
-  function handleSingleBarrelFilterChange(
-    value: string
-  ) {
-    setSelectedSingleBarrelFilter(value);
-    setSelectedReviewTargetId("");
-  }
-
-  function handlePickerChange(
-    value: string
-  ) {
-    setSelectedPickerId(value);
     setSelectedReviewTargetId("");
   }
 
@@ -265,42 +206,24 @@ export default function AddTastingForm({
     stage: SensoryStage,
     sensoryNoteId: string
   ) {
-    setSelectedSensoryNotes(
-      (current) => {
-        const currentStage =
-          current[stage];
+    setSelectedSensoryNotes((current) => {
+      const currentStage = current[stage];
+      const isSelected = currentStage.includes(sensoryNoteId);
 
-        const isSelected =
-          currentStage.includes(
-            sensoryNoteId
-          );
-
-        return {
-          ...current,
-          [stage]: isSelected
-            ? currentStage.filter(
-                (id) =>
-                  id !==
-                  sensoryNoteId
-              )
-            : [
-                ...currentStage,
-                sensoryNoteId,
-              ],
-        };
-      }
-    );
+      return {
+        ...current,
+        [stage]: isSelected
+          ? currentStage.filter((id) => id !== sensoryNoteId)
+          : [...currentStage, sensoryNoteId],
+      };
+    });
   }
 
-  function clearSensoryStage(
-    stage: SensoryStage
-  ) {
-    setSelectedSensoryNotes(
-      (current) => ({
-        ...current,
-        [stage]: [],
-      })
-    );
+  function clearSensoryStage(stage: SensoryStage) {
+    setSelectedSensoryNotes((current) => ({
+      ...current,
+      [stage]: [],
+    }));
   }
 
   return (
@@ -310,317 +233,449 @@ export default function AddTastingForm({
     >
       <input
         type="hidden"
+        name="bottle_entry_mode"
+        value={bottleEntryMode}
+      />
+
+      <input
+        type="hidden"
         name="single_barrel_id"
         value={selectedReviewTargetId}
       />
 
-      {selectedSensoryNotes.NOSE.map(
-        (noteId) => (
+      <input
+        type="hidden"
+        name="use_guided_sensory_notes"
+        value={useGuidedSensoryNotes ? "true" : "false"}
+      />
+
+      {useGuidedSensoryNotes &&
+        selectedSensoryNotes.NOSE.map((noteId) => (
           <input
             key={`nose-${noteId}`}
             type="hidden"
             name="nose_sensory_note_ids"
             value={noteId}
           />
-        )
-      )}
+        ))}
 
-      {selectedSensoryNotes.PALATE.map(
-        (noteId) => (
+      {useGuidedSensoryNotes &&
+        selectedSensoryNotes.PALATE.map((noteId) => (
           <input
             key={`palate-${noteId}`}
             type="hidden"
             name="palate_sensory_note_ids"
             value={noteId}
           />
-        )
-      )}
+        ))}
 
-      {selectedSensoryNotes.FINISH.map(
-        (noteId) => (
+      {useGuidedSensoryNotes &&
+        selectedSensoryNotes.FINISH.map((noteId) => (
           <input
             key={`finish-${noteId}`}
             type="hidden"
             name="finish_sensory_note_ids"
             value={noteId}
           />
-        )
-      )}
+        ))}
+
+      <section className="rounded-lg border border-stone-200 bg-stone-50 p-5">
+        <h2 className="text-2xl font-bold text-stone-950">
+          Use Guided Sensory Notes?
+        </h2>
+
+        <p className="mt-1 text-sm leading-6 text-stone-600">
+          The default Organic Narrative workflow keeps suggested
+          descriptors hidden so you can capture your own impressions first.
+        </p>
+
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+          <button
+            type="button"
+            onClick={() => setUseGuidedSensoryNotes(false)}
+            aria-pressed={!useGuidedSensoryNotes}
+            className={`rounded-lg border p-4 text-left transition ${
+              !useGuidedSensoryNotes
+                ? "border-amber-500 bg-amber-50"
+                : "border-stone-300 bg-white hover:bg-stone-50"
+            }`}
+          >
+            <span className="block font-bold text-stone-950">
+              No — Organic Narrative
+            </span>
+            <span className="mt-1 block text-sm text-stone-600">
+              Write your own Nose, Palate, and Finish observations without
+              seeing suggested descriptors.
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setUseGuidedSensoryNotes(true)}
+            aria-pressed={useGuidedSensoryNotes}
+            className={`rounded-lg border p-4 text-left transition ${
+              useGuidedSensoryNotes
+                ? "border-amber-500 bg-amber-50"
+                : "border-stone-300 bg-white hover:bg-stone-50"
+            }`}
+          >
+            <span className="block font-bold text-stone-950">
+              Yes — Guided Sensory Notes
+            </span>
+            <span className="mt-1 block text-sm text-stone-600">
+              Use the existing categories and descriptors to build the
+              tasting notes.
+            </span>
+          </button>
+        </div>
+      </section>
 
       <section className="rounded-lg border border-stone-200 bg-white p-5">
         <div className="mb-4">
           <h2 className="text-2xl font-bold text-stone-950">
-            Master Whiskey Library
+            Select the Bottle
           </h2>
-
           <p className="mt-1 text-sm leading-6 text-stone-600">
-            Select a producer and bottle
-            first. Optional filters can
-            narrow the list by single
-            barrel, batch, or barrel
-            picker. Then choose the exact
-            bottle record to review.
+            Choose a curated Master Whiskey Library bottle, reuse one of
+            your bottles pending curation, or add a new bottle for this
+            tasting.
           </p>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2">
-          <FormField label="Producer *">
-            <select
-              value={selectedProducerId}
-              required
-              onChange={(event) =>
-                handleProducerChange(
-                  event.target.value
-                )
-              }
-              className="w-full rounded border border-stone-300 bg-white p-2"
-            >
-              <option value="">
-                Select Producer
-              </option>
-
-              {producers.map(
-                (producer) => (
-                  <option
-                    key={
-                      producer.distillery_id
-                    }
-                    value={
-                      producer.distillery_id
-                    }
-                  >
-                    {producer.distillery_name ??
-                      "Unnamed Producer"}
-                  </option>
-                )
-              )}
-            </select>
-          </FormField>
-
-          <FormField label="Bottle *">
-            <select
-              value={selectedBottleId}
-              required
-              disabled={
-                !selectedProducerId
-              }
-              onChange={(event) =>
-                handleBottleChange(
-                  event.target.value
-                )
-              }
-              className="w-full rounded border border-stone-300 bg-white p-2 disabled:bg-stone-100 disabled:text-stone-400"
-            >
-              <option value="">
-                {!selectedProducerId
-                  ? "Select Producer First"
-                  : filteredBottles.length ===
-                      0
-                    ? "No Bottles Found for Producer"
-                    : "Select Bottle"}
-              </option>
-
-              {filteredBottles.map(
-                (bottle) => (
-                  <option
-                    key={bottle.bottle_id}
-                    value={bottle.bottle_id}
-                  >
-                    {bottle.bottle_display_name ??
-                      "Unnamed Bottle"}
-                  </option>
-                )
-              )}
-            </select>
-          </FormField>
-
-          <FormField label="Single Barrel / Batch">
-            <select
-              value={
-                selectedSingleBarrelFilter
-              }
-              disabled={
-                !selectedBottleId
-              }
-              onChange={(event) =>
-                handleSingleBarrelFilterChange(
-                  event.target.value
-                )
-              }
-              className="w-full rounded border border-stone-300 bg-white p-2 disabled:bg-stone-100 disabled:text-stone-400"
-            >
-              <option value="">
-                {!selectedBottleId
-                  ? "Select Bottle First"
-                  : "All Single Barrels / Batches"}
-              </option>
-
-              {availableSingleBarrelFilters.map(
-                (option) => (
-                  <option
-                    key={option.id}
-                    value={option.id}
-                  >
-                    {option.label}
-                  </option>
-                )
-              )}
-            </select>
-          </FormField>
-
-          <FormField label="Barrel Picker">
-            <select
-              value={selectedPickerId}
-              disabled={
-                !selectedBottleId
-              }
-              onChange={(event) =>
-                handlePickerChange(
-                  event.target.value
-                )
-              }
-              className="w-full rounded border border-stone-300 bg-white p-2 disabled:bg-stone-100 disabled:text-stone-400"
-            >
-              <option value="">
-                {!selectedBottleId
-                  ? "Select Bottle First"
-                  : "All Pickers"}
-              </option>
-
-              {pickers.map(
-                (picker) => (
-                  <option
-                    key={
-                      picker.barrel_picker_id
-                    }
-                    value={
-                      picker.barrel_picker_id
-                    }
-                  >
-                    {picker.barrel_picker_name ??
-                      "Unnamed Picker"}
-                  </option>
-                )
-              )}
-            </select>
-          </FormField>
+        <div className="grid gap-3 md:grid-cols-3">
+          <ModeButton
+            active={bottleEntryMode === "LIBRARY"}
+            title="Master Whiskey Library"
+            description="Choose an existing curated release."
+            onClick={() => setMode("LIBRARY")}
+          />
+          <ModeButton
+            active={bottleEntryMode === "PENDING"}
+            title="Pending Curation"
+            description="Reuse a bottle previously submitted by your organization."
+            onClick={() => setMode("PENDING")}
+          />
+          <ModeButton
+            active={bottleEntryMode === "NEW"}
+            title="Add a New Bottle"
+            description="Publish this tasting now while the bottle awaits curation."
+            onClick={() => setMode("NEW")}
+          />
         </div>
 
-        <div className="mt-6">
-          <h3 className="mb-3 text-lg font-bold text-stone-950">
-            Select Bottle Record to Review
-          </h3>
+        {bottleEntryMode === "LIBRARY" && (
+          <div className="mt-6">
+            <div className="grid gap-4 md:grid-cols-2">
+              <FormField label="Producer *">
+                <select
+                  value={selectedProducerId}
+                  required
+                  onChange={(event) =>
+                    handleProducerChange(event.target.value)
+                  }
+                  className="w-full rounded border border-stone-300 bg-white p-2"
+                >
+                  <option value="">Select Producer</option>
+                  {producers.map((producer) => (
+                    <option
+                      key={producer.distillery_id}
+                      value={producer.distillery_id}
+                    >
+                      {producer.distillery_name ?? "Unnamed Producer"}
+                    </option>
+                  ))}
+                </select>
+              </FormField>
 
-          {!selectedProducerId ||
-          !selectedBottleId ? (
-            <div className="rounded-lg border border-dashed border-stone-300 bg-stone-50 p-5 text-sm text-stone-600">
-              Select a producer and bottle
-              to see available Master
-              Whiskey Library records.
+              <FormField label="Bottle *">
+                <select
+                  value={selectedBottleId}
+                  required
+                  disabled={!selectedProducerId}
+                  onChange={(event) =>
+                    handleBottleChange(event.target.value)
+                  }
+                  className="w-full rounded border border-stone-300 bg-white p-2 disabled:bg-stone-100 disabled:text-stone-400"
+                >
+                  <option value="">
+                    {!selectedProducerId
+                      ? "Select Producer First"
+                      : filteredBottles.length === 0
+                        ? "No Bottles Found for Producer"
+                        : "Select Bottle"}
+                  </option>
+
+                  {filteredBottles.map((bottle) => (
+                    <option key={bottle.bottle_id} value={bottle.bottle_id}>
+                      {bottle.bottle_display_name ?? "Unnamed Bottle"}
+                    </option>
+                  ))}
+                </select>
+              </FormField>
+
+              <FormField label="Single Barrel / Batch">
+                <select
+                  value={selectedSingleBarrelFilter}
+                  disabled={!selectedBottleId}
+                  onChange={(event) => {
+                    setSelectedSingleBarrelFilter(event.target.value);
+                    setSelectedReviewTargetId("");
+                  }}
+                  className="w-full rounded border border-stone-300 bg-white p-2 disabled:bg-stone-100 disabled:text-stone-400"
+                >
+                  <option value="">
+                    {!selectedBottleId
+                      ? "Select Bottle First"
+                      : "All Single Barrels / Batches"}
+                  </option>
+
+                  {availableSingleBarrelFilters.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </FormField>
+
+              <FormField label="Barrel Picker">
+                <select
+                  value={selectedPickerId}
+                  disabled={!selectedBottleId}
+                  onChange={(event) => {
+                    setSelectedPickerId(event.target.value);
+                    setSelectedReviewTargetId("");
+                  }}
+                  className="w-full rounded border border-stone-300 bg-white p-2 disabled:bg-stone-100 disabled:text-stone-400"
+                >
+                  <option value="">
+                    {!selectedBottleId ? "Select Bottle First" : "All Pickers"}
+                  </option>
+
+                  {pickers.map((picker) => (
+                    <option
+                      key={picker.barrel_picker_id}
+                      value={picker.barrel_picker_id}
+                    >
+                      {picker.barrel_picker_name ?? "Unnamed Picker"}
+                    </option>
+                  ))}
+                </select>
+              </FormField>
             </div>
-          ) : filteredReviewTargets.length ===
-            0 ? (
-            <div className="rounded-lg border border-dashed border-stone-300 bg-stone-50 p-5 text-sm text-stone-600">
-              No approved bottle records
-              match the current filters.
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {filteredReviewTargets.map(
-                (target) => (
-                  <label
-                    key={
-                      target.single_barrel_id
-                    }
-                    className={`block cursor-pointer rounded-lg border p-4 transition ${
-                      selectedReviewTargetId ===
-                      target.single_barrel_id
-                        ? "border-amber-500 bg-amber-50"
-                        : "border-stone-300 bg-white hover:bg-stone-50"
-                    }`}
-                  >
-                    <div className="flex items-start gap-3">
-                      <input
-                        type="radio"
-                        name="selected_single_barrel_radio"
-                        checked={
-                          selectedReviewTargetId ===
-                          target.single_barrel_id
-                        }
-                        onChange={() =>
-                          setSelectedReviewTargetId(
-                            target.single_barrel_id
-                          )
-                        }
-                        className="mt-1 h-4 w-4 accent-stone-900"
-                      />
 
-                      <div className="min-w-0 flex-1">
-                        <div className="font-bold text-stone-950">
-                          {target.bottle_display_name ??
-                            "Unnamed Bottle"}
-                        </div>
+            <div className="mt-6">
+              <h3 className="mb-3 text-lg font-bold text-stone-950">
+                Select Bottle Record to Review
+              </h3>
 
-                        <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-sm text-stone-600">
-                          <span>
-                            <span className="font-semibold">
-                              Producer:
-                            </span>{" "}
-                            {target.producer_name ??
-                              target.distillery_name ??
-                              "—"}
-                          </span>
-
-                          <span>
-                            <span className="font-semibold">
-                              Pick / Batch:
-                            </span>{" "}
-                            {formatSingleBarrelLabel(
-                              target
-                            )}
-                          </span>
-
-                          <span>
-                            <span className="font-semibold">
-                              Picker:
-                            </span>{" "}
-                            {target.barrel_picker_name ??
-                              target.picker_name ??
-                              "N/A"}
-                          </span>
-
-                          {target.proof !==
-                            null &&
-                            target.proof !==
-                              undefined && (
-                              <span>
-                                <span className="font-semibold">
-                                  Proof:
-                                </span>{" "}
-                                {Number(
-                                  target.proof
-                                ).toFixed(1)}
-                              </span>
-                            )}
-
-                          {target.bottling_year && (
-                            <span>
-                              <span className="font-semibold">
-                                Bottling Year:
-                              </span>{" "}
-                              {
-                                target.bottling_year
-                              }
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </label>
-                )
+              {!selectedProducerId || !selectedBottleId ? (
+                <EmptyState>
+                  Select a producer and bottle to see available Master
+                  Whiskey Library records.
+                </EmptyState>
+              ) : filteredReviewTargets.length === 0 ? (
+                <EmptyState>
+                  No approved bottle records match the current filters.
+                </EmptyState>
+              ) : (
+                <div className="space-y-3">
+                  {filteredReviewTargets.map((target) => (
+                    <BottleTargetCard
+                      key={target.single_barrel_id}
+                      target={target}
+                      selected={
+                        selectedReviewTargetId === target.single_barrel_id
+                      }
+                      onSelect={() =>
+                        setSelectedReviewTargetId(target.single_barrel_id)
+                      }
+                    />
+                  ))}
+                </div>
               )}
             </div>
+          </div>
+        )}
+
+        {bottleEntryMode === "PENDING" && (
+          <div className="mt-6">
+            {pendingSingleBarrels.length === 0 ? (
+              <EmptyState>
+                Your organization does not have any bottles pending
+                Master Whiskey Library curation.
+              </EmptyState>
+            ) : (
+              <div className="space-y-3">
+                {pendingSingleBarrels.map((target) => (
+                  <BottleTargetCard
+                    key={target.single_barrel_id}
+                    target={target}
+                    selected={
+                      selectedReviewTargetId === target.single_barrel_id
+                    }
+                    onSelect={() =>
+                      setSelectedReviewTargetId(target.single_barrel_id)
+                    }
+                    pending
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {bottleEntryMode === "NEW" && (
+          <div className="mt-6 rounded-lg border border-amber-200 bg-amber-50/60 p-5">
+            <h3 className="text-lg font-bold text-stone-950">
+              New Bottle Information
+            </h3>
+            <p className="mt-1 text-sm leading-6 text-stone-600">
+              Use a clear temporary name. The tasting will be public
+              immediately, and the bottle details will be reviewed for the
+              Master Whiskey Library.
+            </p>
+
+            <div className="mt-4 space-y-4">
+              <FormField label="Temporary Bottle Display Name *">
+                <input
+                  name="new_bottle_display_name"
+                  required
+                  maxLength={250}
+                  placeholder="Example: Four Roses Private Selection — Roy's Pick"
+                  className="w-full rounded border border-stone-300 bg-white p-2"
+                />
+              </FormField>
+
+              <FormField label="Bottle Details *">
+                <textarea
+                  name="new_bottle_details"
+                  required
+                  maxLength={10000}
+                  placeholder="Enter everything visible on the bottle or known about the release: producer, brand, expression, proof, age, batch, barrel, picker, finish, size, and any other useful details."
+                  className="min-h-40 w-full rounded border border-stone-300 bg-white p-2"
+                />
+              </FormField>
+
+              <p className="text-xs leading-5 text-stone-500">
+                After submission, this intake information cannot be edited by
+                the customer. The bottle will remain selectable by your
+                organization while it is pending curation.
+              </p>
+            </div>
+          </div>
+        )}
+      </section>
+
+      <section className="rounded-lg border border-stone-200 bg-white p-5">
+        <div className="mb-5">
+          <h2 className="text-2xl font-bold text-stone-950">
+            Tasting Notes
+          </h2>
+          <p className="mt-1 text-sm leading-6 text-stone-600">
+            {useGuidedSensoryNotes
+              ? "Select descriptors if helpful, then write or refine your Nose, Palate, and Finish notes."
+              : "Capture your own Nose, Palate, and Finish observations without suggested descriptors."}
+          </p>
+        </div>
+
+        <div className="space-y-8">
+          {useGuidedSensoryNotes && (
+            <SensoryStageSelector
+              stage="NOSE"
+              stageLabel="Nose"
+              sensoryNotes={sensoryNotes}
+              selectedIds={selectedSensoryNotes.NOSE}
+              searchValue={sensorySearch.NOSE}
+              onSearchChange={(value) =>
+                setSensorySearch((current) => ({
+                  ...current,
+                  NOSE: value,
+                }))
+              }
+              onToggle={(noteId) => toggleSensoryNote("NOSE", noteId)}
+              onClear={() => clearSensoryStage("NOSE")}
+            />
           )}
+
+          <FormField label="Nose Notes">
+            <textarea
+              name="nose_notes"
+              placeholder={
+                useGuidedSensoryNotes
+                  ? "Leave blank to build a simple sentence from selected Nose notes, or write your own review."
+                  : "Write your Nose keywords, observations, or narrative."
+              }
+              className="min-h-28 w-full rounded border border-stone-300 p-2"
+            />
+          </FormField>
+
+          {useGuidedSensoryNotes && (
+            <SensoryStageSelector
+              stage="PALATE"
+              stageLabel="Palate"
+              sensoryNotes={sensoryNotes}
+              selectedIds={selectedSensoryNotes.PALATE}
+              searchValue={sensorySearch.PALATE}
+              onSearchChange={(value) =>
+                setSensorySearch((current) => ({
+                  ...current,
+                  PALATE: value,
+                }))
+              }
+              onToggle={(noteId) => toggleSensoryNote("PALATE", noteId)}
+              onClear={() => clearSensoryStage("PALATE")}
+            />
+          )}
+
+          <FormField label="Palate Notes">
+            <textarea
+              name="palate_notes"
+              placeholder={
+                useGuidedSensoryNotes
+                  ? "Leave blank to build a simple sentence from selected Palate notes, or write your own review."
+                  : "Write your Palate keywords, observations, or narrative."
+              }
+              className="min-h-28 w-full rounded border border-stone-300 p-2"
+            />
+          </FormField>
+
+          {useGuidedSensoryNotes && (
+            <SensoryStageSelector
+              stage="FINISH"
+              stageLabel="Finish"
+              sensoryNotes={sensoryNotes}
+              selectedIds={selectedSensoryNotes.FINISH}
+              searchValue={sensorySearch.FINISH}
+              onSearchChange={(value) =>
+                setSensorySearch((current) => ({
+                  ...current,
+                  FINISH: value,
+                }))
+              }
+              onToggle={(noteId) => toggleSensoryNote("FINISH", noteId)}
+              onClear={() => clearSensoryStage("FINISH")}
+            />
+          )}
+
+          <FormField label="Finish Notes">
+            <textarea
+              name="finish_notes"
+              placeholder={
+                useGuidedSensoryNotes
+                  ? "Leave blank to build a simple sentence from selected Finish notes, or write your own review."
+                  : "Write your Finish keywords, observations, or narrative."
+              }
+              className="min-h-28 w-full rounded border border-stone-300 p-2"
+            />
+          </FormField>
+
+          <FormField label="Overall Notes">
+            <textarea
+              name="overall_notes"
+              placeholder="Add your overall assessment of the bottle."
+              className="min-h-28 w-full rounded border border-stone-300 p-2"
+            />
+          </FormField>
         </div>
       </section>
 
@@ -629,68 +684,27 @@ export default function AddTastingForm({
           <h2 className="text-2xl font-bold text-stone-950">
             Tasting Scores
           </h2>
-
           <p className="mt-1 text-sm leading-6 text-stone-600">
-            Enter one overall bottle score,
-            or score the Nose, Palate, and
+            Enter one overall bottle score, or score the Nose, Palate, and
             Finish individually.
           </p>
         </div>
 
-        <input
-          type="hidden"
-          name="score_method"
-          value={scoreMethod}
-        />
+        <input type="hidden" name="score_method" value={scoreMethod} />
 
         <div className="mb-5 grid gap-3 md:grid-cols-2">
-          <button
-            type="button"
-            onClick={() =>
-              setScoreMethod("OVERALL")
-            }
-            aria-pressed={
-              scoreMethod === "OVERALL"
-            }
-            className={`rounded-lg border p-4 text-left transition ${
-              scoreMethod === "OVERALL"
-                ? "border-amber-500 bg-amber-50"
-                : "border-stone-300 bg-white hover:bg-stone-50"
-            }`}
-          >
-            <span className="block font-bold text-stone-950">
-              Overall Bottle Score
-            </span>
-
-            <span className="mt-1 block text-sm text-stone-600">
-              Enter one score for the
-              entire tasting.
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() =>
-              setScoreMethod("SENSORY")
-            }
-            aria-pressed={
-              scoreMethod === "SENSORY"
-            }
-            className={`rounded-lg border p-4 text-left transition ${
-              scoreMethod === "SENSORY"
-                ? "border-amber-500 bg-amber-50"
-                : "border-stone-300 bg-white hover:bg-stone-50"
-            }`}
-          >
-            <span className="block font-bold text-stone-950">
-              Sensory Scores
-            </span>
-
-            <span className="mt-1 block text-sm text-stone-600">
-              Score Nose, Palate, and
-              Finish separately.
-            </span>
-          </button>
+          <ModeButton
+            active={scoreMethod === "OVERALL"}
+            title="Overall Bottle Score"
+            description="Enter one score for the entire tasting."
+            onClick={() => setScoreMethod("OVERALL")}
+          />
+          <ModeButton
+            active={scoreMethod === "SENSORY"}
+            title="Nose, Palate, and Finish Scores"
+            description="Score all three stages separately."
+            onClick={() => setScoreMethod("SENSORY")}
+          />
         </div>
 
         {scoreMethod === "OVERALL" ? (
@@ -709,193 +723,148 @@ export default function AddTastingForm({
           </div>
         ) : (
           <div className="grid gap-4 md:grid-cols-3">
-            <FormField label="Nose Score *">
-              <input
-                name="nose_score"
-                type="number"
-                required
-                step="0.1"
-                min="0"
-                max="10"
-                className="w-full rounded border border-stone-300 p-2"
-              />
-            </FormField>
-
-            <FormField label="Palate Score *">
-              <input
-                name="palate_score"
-                type="number"
-                required
-                step="0.1"
-                min="0"
-                max="10"
-                className="w-full rounded border border-stone-300 p-2"
-              />
-            </FormField>
-
-            <FormField label="Finish Score *">
-              <input
-                name="finish_score"
-                type="number"
-                required
-                step="0.1"
-                min="0"
-                max="10"
-                className="w-full rounded border border-stone-300 p-2"
-              />
-            </FormField>
+            <ScoreInput name="nose_score" label="Nose Score *" />
+            <ScoreInput name="palate_score" label="Palate Score *" />
+            <ScoreInput name="finish_score" label="Finish Score *" />
           </div>
         )}
-      </section>
-
-      <section className="rounded-lg border border-stone-200 bg-white p-5">
-        <div className="mb-5">
-          <h2 className="text-2xl font-bold text-stone-950">
-            Tasting Notes
-          </h2>
-
-          <p className="mt-1 text-sm leading-6 text-stone-600">
-            Select any notes you identify.
-            Barrel Ledger will build a
-            simple review sentence when
-            the corresponding text field is
-            left blank. You may also type
-            your own notes directly.
-          </p>
-        </div>
-
-        <div className="space-y-8">
-          <SensoryStageSelector
-            stage="NOSE"
-            stageLabel="Nose"
-            sensoryNotes={sensoryNotes}
-            selectedIds={
-              selectedSensoryNotes.NOSE
-            }
-            searchValue={
-              sensorySearch.NOSE
-            }
-            onSearchChange={(value) =>
-              setSensorySearch(
-                (current) => ({
-                  ...current,
-                  NOSE: value,
-                })
-              )
-            }
-            onToggle={(noteId) =>
-              toggleSensoryNote(
-                "NOSE",
-                noteId
-              )
-            }
-            onClear={() =>
-              clearSensoryStage("NOSE")
-            }
-          />
-
-          <FormField label="Nose Notes">
-            <textarea
-              name="nose_notes"
-              placeholder="Leave blank to build a simple sentence from the selected Nose notes, or write your own review."
-              className="min-h-28 w-full rounded border border-stone-300 p-2"
-            />
-          </FormField>
-
-          <SensoryStageSelector
-            stage="PALATE"
-            stageLabel="Palate"
-            sensoryNotes={sensoryNotes}
-            selectedIds={
-              selectedSensoryNotes.PALATE
-            }
-            searchValue={
-              sensorySearch.PALATE
-            }
-            onSearchChange={(value) =>
-              setSensorySearch(
-                (current) => ({
-                  ...current,
-                  PALATE: value,
-                })
-              )
-            }
-            onToggle={(noteId) =>
-              toggleSensoryNote(
-                "PALATE",
-                noteId
-              )
-            }
-            onClear={() =>
-              clearSensoryStage("PALATE")
-            }
-          />
-
-          <FormField label="Palate Notes">
-            <textarea
-              name="palate_notes"
-              placeholder="Leave blank to build a simple sentence from the selected Palate notes, or write your own review."
-              className="min-h-28 w-full rounded border border-stone-300 p-2"
-            />
-          </FormField>
-
-          <SensoryStageSelector
-            stage="FINISH"
-            stageLabel="Finish"
-            sensoryNotes={sensoryNotes}
-            selectedIds={
-              selectedSensoryNotes.FINISH
-            }
-            searchValue={
-              sensorySearch.FINISH
-            }
-            onSearchChange={(value) =>
-              setSensorySearch(
-                (current) => ({
-                  ...current,
-                  FINISH: value,
-                })
-              )
-            }
-            onToggle={(noteId) =>
-              toggleSensoryNote(
-                "FINISH",
-                noteId
-              )
-            }
-            onClear={() =>
-              clearSensoryStage("FINISH")
-            }
-          />
-
-          <FormField label="Finish Notes">
-            <textarea
-              name="finish_notes"
-              placeholder="Leave blank to build a simple sentence from the selected Finish notes, or write your own review."
-              className="min-h-28 w-full rounded border border-stone-300 p-2"
-            />
-          </FormField>
-
-          <FormField label="Overall Notes">
-            <textarea
-              name="overall_notes"
-              placeholder="Add your overall assessment of the bottle."
-              className="min-h-28 w-full rounded border border-stone-300 p-2"
-            />
-          </FormField>
-        </div>
 
         <button
           type="submit"
-          disabled={
-            !selectedReviewTargetId
-          }
+          disabled={!canSubmit}
           className="mt-8 rounded bg-stone-900 px-5 py-2 font-semibold text-white hover:bg-stone-800 disabled:cursor-not-allowed disabled:bg-stone-400"
         >
           Save Tasting
         </button>
       </section>
     </form>
+  );
+}
+
+function ModeButton({
+  active,
+  title,
+  description,
+  onClick,
+}: {
+  active: boolean;
+  title: string;
+  description: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={`rounded-lg border p-4 text-left transition ${
+        active
+          ? "border-amber-500 bg-amber-50"
+          : "border-stone-300 bg-white hover:bg-stone-50"
+      }`}
+    >
+      <span className="block font-bold text-stone-950">{title}</span>
+      <span className="mt-1 block text-sm text-stone-600">
+        {description}
+      </span>
+    </button>
+  );
+}
+
+function ScoreInput({ name, label }: { name: string; label: string }) {
+  return (
+    <FormField label={label}>
+      <input
+        name={name}
+        type="number"
+        required
+        step="0.1"
+        min="0"
+        max="10"
+        className="w-full rounded border border-stone-300 p-2"
+      />
+    </FormField>
+  );
+}
+
+function BottleTargetCard({
+  target,
+  selected,
+  onSelect,
+  pending = false,
+}: {
+  target: SingleBarrelOption;
+  selected: boolean;
+  onSelect: () => void;
+  pending?: boolean;
+}) {
+  return (
+    <label
+      className={`block cursor-pointer rounded-lg border p-4 transition ${
+        selected
+          ? "border-amber-500 bg-amber-50"
+          : "border-stone-300 bg-white hover:bg-stone-50"
+      }`}
+    >
+      <div className="flex items-start gap-3">
+        <input
+          type="radio"
+          name="selected_single_barrel_radio"
+          checked={selected}
+          onChange={onSelect}
+          className="mt-1 h-4 w-4 accent-stone-900"
+        />
+
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="font-bold text-stone-950">
+              {target.bottle_display_name ?? "Unnamed Bottle"}
+            </div>
+
+            {pending && (
+              <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-900">
+                Pending Curation
+              </span>
+            )}
+          </div>
+
+          {!pending && (
+            <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-sm text-stone-600">
+              <span>
+                <span className="font-semibold">Producer:</span>{" "}
+                {target.producer_name ??
+                  target.distillery_name ??
+                  "—"}
+              </span>
+              <span>
+                <span className="font-semibold">Pick / Batch:</span>{" "}
+                {formatSingleBarrelLabel(target)}
+              </span>
+              <span>
+                <span className="font-semibold">Picker:</span>{" "}
+                {target.barrel_picker_name ??
+                  target.picker_name ??
+                  "N/A"}
+              </span>
+              {target.proof !== null && target.proof !== undefined && (
+                <span>
+                  <span className="font-semibold">Proof:</span>{" "}
+                  {Number(target.proof).toFixed(1)}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </label>
+  );
+}
+
+function EmptyState({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="rounded-lg border border-dashed border-stone-300 bg-stone-50 p-5 text-sm text-stone-600">
+      {children}
+    </div>
   );
 }
 
